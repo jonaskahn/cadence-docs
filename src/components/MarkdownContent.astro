@@ -1,0 +1,25 @@
+---
+/**
+ * Wraps Starlight’s markdown column in a panel that uses Starlight design tokens only
+ * (--sl-color-*, --sl-shadow-*, radii from the theme).
+ */
+import Default from '@astrojs/starlight/components/MarkdownContent.astro';
+---
+
+<div class="markdown-surface">
+  <Default>
+    <slot />
+  </Default>
+</div>
+
+<style>
+  @layer starlight.components {
+    .markdown-surface {
+      border: 1px solid var(--sl-color-hairline-light);
+      border-radius: 0.5rem;
+      background-color: color-mix(in oklch, var(--sl-color-accent) 5%, var(--sl-color-bg));
+      padding: clamp(1rem, 2.5vw, 1.75rem);
+      box-shadow: var(--sl-shadow-sm);
+    }
+  }
+</style>

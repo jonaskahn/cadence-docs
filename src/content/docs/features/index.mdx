@@ -1,0 +1,119 @@
+---
+title: Feature guides
+description: In-depth guides for every major Cadence capability — concepts, workflows, code, and troubleshooting.
+sidebar:
+  order: 0
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Navigate feature areas to prioritize roadmap and risk conversations.
+  'business-analyst':
+    - Map product epics to the feature guides listed in this section.
+  'solution-architect':
+    - Choose deep dives for integration design (tenancy, auth, orchestration, plugins).
+  developer:
+    - Jump to API- and code-oriented pages for each subsystem.
+  tester:
+    - Plan coverage by feature domain using the sidebar structure.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+In-depth guides for every major Cadence capability. Each page leads with **who it is for**, a **visual or diagram** where it helps, and **technical detail** with repository paths—plus **limitations** and **related pages** at the end.
+
+If you are new to the platform, start with [What is Cadence?](/concepts/what-is-cadence/) and [How the platform works](/concepts/how-it-works/), then use the sections below.
+
+## Security and tenancy
+
+<CardGrid>
+  <LinkCard
+    title="Multi-tenancy"
+    href="/features/multi-tenancy/"
+    description="Organization isolation, X-ORG-ID context, and request lifecycle."
+  />
+  <LinkCard
+    title="Role-based access control"
+    href="/features/role-based-access-control/"
+    description="cadence:* permission strings, built-in roles, and API key scopes."
+  />
+  <LinkCard
+    title="JWT sessions"
+    href="/features/jwt-sessions/"
+    description="Redis-backed jti sessions, revocation, and API key contrast."
+  />
+</CardGrid>
+
+## LLM and orchestration
+
+<CardGrid>
+  <LinkCard
+    title="LLM configuration"
+    href="/features/llm-configuration/"
+    description="BYOK provider setup, encrypted API key storage, and framework compatibility."
+  />
+  <LinkCard
+    title="Orchestration backends"
+    href="/features/orchestration-backends/"
+    description="LangGraph and OpenAI Agents SDK — framework capabilities, modes, and AI App creation."
+  />
+  <LinkCard
+    title="Orchestration modes"
+    href="/features/orchestration-modes/"
+    description="Supervisor vs Grounded, resource_id, and mode_config."
+  />
+  <LinkCard
+    title="AI Apps"
+    href="/features/ai-apps/"
+    description="Create, load, and manage AI Apps per org."
+  />
+  <LinkCard
+    title="AI Agent system"
+    href="/features/plugin-system/"
+    description="Upload-attach-load lifecycle for ZIP plugin packages (AI agents)."
+  />
+  <LinkCard
+    title="AI Agent SDK"
+    href="/features/plugin-sdk/"
+    description="BasePlugin, BaseAgent, UvTool, and the full SDK reference for plugin authors."
+  />
+  <LinkCard
+    title="AI Agents catalog"
+    href="/features/plugins-catalog/"
+    description="System and org plugin catalog, upload validation, and settings schema."
+  />
+  <LinkCard
+    title="Hot-reload and AI App pool"
+    href="/features/hot-reload-ai-app-pool/"
+    description="Pool tiers, async load/unload, and 202 semantics."
+  />
+</CardGrid>
+
+## Chat and observability
+
+<CardGrid>
+  <LinkCard
+    title="Chat and engine"
+    href="/features/chat-and-engine/"
+    description="Chat completion headers, AI App vs central point routing, and engine prompts."
+  />
+  <LinkCard
+    title="Real-time streaming"
+    href="/features/real-time-streaming/"
+    description="SSE event model, header contract, and client parsing."
+  />
+  <LinkCard
+    title="Central Points"
+    href="/features/central-points/"
+    description="Stable aliases for AI Apps with private/public visibility."
+  />
+  <LinkCard
+    title="Observability"
+    href="/features/observability/"
+    description="Structured logs, health endpoints, and OpenTelemetry."
+  />
+</CardGrid>

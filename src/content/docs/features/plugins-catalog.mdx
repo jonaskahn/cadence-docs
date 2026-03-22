@@ -1,0 +1,98 @@
+---
+title: AI Agents catalog
+description: Org-scoped catalog, uploads, system plugins, and settings schemas for AI agent packages.
+sidebar:
+  order: 10
+  badge:
+    text: PLUGIN
+    variant: note
+tableOfContents: true
+titleBadge: PLUGIN
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Differentiate catalog versus tenant-local plugins for procurement and trust.
+  'business-analyst':
+    - Write stories for browsing, enabling, and versioning catalog entries.
+  'solution-architect':
+    - Integrate object storage and CDN assumptions for catalog artifacts.
+  developer:
+    - Use catalog APIs and caching semantics documented on this page.
+  tester:
+    - Verify catalog sync, failures, and permission gates.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+The plugin catalog is the registry of all available **AI agents** (plugin ZIPs) for a deployment — both platform-wide **system plugins** and per-org **tenant plugins**. Org admins browse the catalog to discover what's available and attach agents to AI Apps. Platform admins maintain the system catalog that all orgs share.
+
+## How the catalog works
+
+When a plugin ZIP is uploaded, the server discovers and registers it in the catalog — creating a row with the plugin's `pid`, version, name, description, capabilities, and settings schema. This row is what org admins see when they browse available plugins.
+
+At startup, `ensure_all_catalog_plugins_local` pulls any catalog artifacts that are missing from the local filesystem. This guarantees that hot-tier orchestrators can load their plugins immediately without waiting for a download at request time.
+
+The catalog has two layers. **System plugins** are uploaded by `sys_admin` and appear in every org's plugin list — they're platform capabilities that all tenants can enable. **Org plugins** are uploaded by org admins and appear only in that org's catalog. Both layers are served together from `GET /api/orgs/{org_id}/plugins` so clients see one unified list.
+
+## Data storage
+
+Catalog rows live in PostgreSQL, managed by `SystemPluginRepository` (system catalog) and `OrganizationPluginRepository` (org catalog). Plugin ZIP artifacts are stored in the `PluginStoreRepository` — a two-layer store that writes to local filesystem and optionally syncs to S3/MinIO. If S3 credentials are absent, the store falls back to local-only and logs a warning; the catalog continues to function.
+
+## API
+
+| Method   | Path                                               | Permission                  | Action                                                  |
+| -------- | -------------------------------------------------- | --------------------------- | ------------------------------------------------------- |
+| `GET`    | `/api/orgs/{org_id}/plugins`                       | `cadence:org:plugins:read`  | List org + system plugins combined; filter with `?tag=` |
+| `GET`    | `/api/orgs/{org_id}/plugins/{pid}/versions`        | `cadence:org:plugins:read`  | All versions of a plugin by pid; `?source=org\|system`  |
+| `POST`   | `/api/orgs/{org_id}/plugins/upload`                | `cadence:org:plugins:write` | Upload a ZIP plugin to the org catalog                  |
+| `PATCH`  | `/api/orgs/{org_id}/plugins/{plugin_id}`           | `cadence:org:plugins:write` | Enable or disable an org plugin                         |
+| `DELETE` | `/api/orgs/{org_id}/plugins/{plugin_id}`           | `cadence:org:plugins:write` | Disable an org plugin (`enabled=false`)                 |
+| `GET`    | `/api/orgs/{org_id}/plugins/{pid}/settings-schema` | `cadence:org:plugins:read`  | Fetch settings schema for UI rendering                  |
+
+`org_context` enforces org membership after permission checks — a user must both hold the permission and belong to the org.
+
+## Upload validation
+
+Uploads go through `read_validated_plugin_file` before any storage or discovery occurs. The file must have a `.zip` extension, its first 4 bytes must be the ZIP magic bytes (`PK\x03\x04`), and its size must not exceed `MAX_PLUGIN_UPLOAD_BYTES` (5 MB). Oversized files return `413`; invalid format returns `400`.
+
+## Settings schema
+
+The settings schema is the list of configuration fields a plugin declares it needs. When an org admin wires a plugin to an orchestrator, the UI calls `GET .../plugins/{pid}/settings-schema` to render a configuration form. The admin fills in the values; they are stored in the orchestrator's `plugin_settings` field and passed to `agent.initialize(config)` when the orchestrator loads.
+
+Per-instance plugin settings live on orchestrator routes under `/api/orgs/{org_id}/orchestrators/...`, not on plugin catalog routes — see [Orchestrator instances](/features/ai-apps/).
+
+<Aside type="tip" title="Sensitive settings">
+  Settings fields declared with `sensitive: true` are masked in logs and UI. Store API keys and
+  credentials as sensitive settings rather than hardcoding them in plugin code.
+</Aside>
+
+## Limitations
+
+- **Upload size** — Capped at 5 MB (`MAX_PLUGIN_UPLOAD_BYTES`). Split large data files out of the ZIP and load them at runtime via settings.
+- **S3 optional** — If S3 credentials are missing, the store falls back to local filesystem only. Catalog sync still works for local paths but artifacts will not replicate across nodes.
+- **Soft delete** — `DELETE` sets `enabled=false`; it does not remove the row or artifact. Re-enable via `PATCH` if needed.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Orchestrator instances"
+    href="/features/ai-apps/"
+    description="Attach plugins to instances and manage pool loading."
+  />
+  <LinkCard
+    title="AI Agent system"
+    href="/features/plugin-system/"
+    description="Full upload-attach-load lifecycle with API reference."
+  />
+  <LinkCard
+    title="AI Agent SDK"
+    href="/features/plugin-sdk/"
+    description="Building plugins with BasePlugin, UvTool, and settings decorators."
+  />
+</CardGrid>

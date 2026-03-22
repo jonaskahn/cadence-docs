@@ -1,0 +1,116 @@
+---
+title: OAuth2 clients
+description: Registering public and confidential OAuth2 clients, grant types, redirect URIs, and secrets.
+sidebar:
+  order: 3
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Understand first-party versus third-party OAuth clients for partnerships.
+  'business-analyst':
+    - Capture client registration, redirect URI, and scope requirements.
+  'solution-architect':
+    - Secure client secrets, rotation, and network access to token endpoints.
+  developer:
+    - Register and maintain OAuth2 clients via platform admin APIs.
+  tester:
+    - Exercise token grants and client revocation scenarios.
+---
+
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+
+**Register** OAuth2 clients so applications can use authorization code, refresh, and password grants against your Cadence deployment.
+
+## Summary for stakeholders
+
+- **Trust boundaries** — Each client ties redirect URIs and grant types to a specific product surface; misconfiguration can leak tokens to the wrong origin.
+- **Secrets** — Confidential clients carry secrets; public clients rely on PKCE instead of a shared secret.
+
+## Business analysis
+
+- **Environments** — Register separate redirect URI sets per dev/staging/prod; acceptance tests should cover mistyped URIs.
+- **Grants** — Document which flows (authorization code, refresh, password) are approved for your org’s policy.
+
+## Architecture and integration
+
+- Client rows live in PostgreSQL and are consumed by the OAuth2 token and authorization endpoints (`cadence.api.oauth2` and related modules).
+- Network access to `/oauth2/*` and `/api/oauth2/*` paths should follow the same TLS and WAF rules as the rest of the API.
+
+## Prerequisites
+
+- Admin APIs with **`cadence:system:oauth_clients:read`** (list) and **`cadence:system:oauth_clients:write`** (create)
+- Known **redirect URIs** for each environment (dev/staging/prod)
+
+## Register a client
+
+<Steps>
+
+    1. Choose a `client_id` and register `redirect_uris` for your app (include dev and staging
+    URLs as needed).
+    2. Enable `authorization_code` (and `refresh_token` if using refresh) in `allowed_grant_types`.
+    3. For server-side apps, set `client_type` to `confidential` and supply a `client_secret` at
+    creation; store the secret securely.
+    4. For SPAs, use `public` clients with PKCE (`code_challenge` / `code_verifier`).
+    5. Configure your app to discover endpoints from
+    `GET /.well-known/openid-configuration` at the Cadence API base URL.
+
+</Steps>
+
+## Client fields reference
+
+| Field                 | Type                       | Meaning                                                        |
+| --------------------- | -------------------------- | -------------------------------------------------------------- |
+| `client_id`           | string                     | Unique identifier (e.g. `my-spa`)                              |
+| `name`                | string                     | Human-readable label                                           |
+| `client_type`         | `public` or `confidential` | Confidential clients require `client_secret` on token requests |
+| `is_first_party`      | boolean                    | Metadata for your UX or policy                                 |
+| `redirect_uris`       | string[]                   | Allowed redirect URLs — **exact match** on `/oauth2/authorize` |
+| `allowed_grant_types` | string[]                   | e.g. `authorization_code`, `refresh_token`, `password`         |
+| `allowed_scopes`      | string[]                   | Optional filter; empty means "allow requested scope"           |
+| `is_active`           | boolean                    | Soft-disable the client                                        |
+
+```python title="cadence/api/admin_security.py"
+class OAuth2ClientCreate(BaseModel):
+    client_id: str = Field(..., min_length=2, max_length=255)
+    name: str
+    client_type: str = Field("confidential", pattern="^(public|confidential)$")
+    is_first_party: bool = False
+    redirect_uris: List[str] = Field(default_factory=list)
+    allowed_grant_types: List[str] = Field(default_factory=list)
+    allowed_scopes: List[str] = Field(default_factory=list)
+    client_secret: Optional[str] = None
+```
+
+<Aside type="note" title="Secrets are hashed">
+  Client secrets are stored hashed. The raw secret is only available at creation. If lost, you must
+  rotate by creating a new client or updating via the admin API.
+</Aside>
+
+## Troubleshooting
+
+| Symptom                   | Cause                                                         | Fix                                              |
+| ------------------------- | ------------------------------------------------------------- | ------------------------------------------------ |
+| `invalid_client` on token | Wrong `client_id` or missing `client_secret` for confidential | Verify client id and secret                      |
+| `invalid_redirect_uri`    | URI not in `redirect_uris` (must be exact match)              | Add the exact URI including trailing slash       |
+| Consent fails             | User must be logged in for `POST /oauth2/consent/decision`    | Ensure the user session is active before consent |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="OAuth2 and BFF integration"
+    href="/integrations/oauth-bff/"
+    description="Authorization code flow, PKCE, consent, and Nuxt BFF patterns."
+  />
+  <LinkCard
+    title="API keys"
+    href="/guides/api-keys/"
+    description="Automation credentials with cdk_ prefix and permission scopes."
+  />
+</CardGrid>

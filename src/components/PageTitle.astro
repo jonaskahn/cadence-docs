@@ -1,0 +1,179 @@
+---
+/**
+ * Extends Starlight’s default page title with description, intended audience,
+ * and optional learning outcomes from frontmatter.
+ */
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import type { AudienceKey } from '../lib/audiences';
+import { audienceLabels, sortAudienceKeys } from '../lib/audiences';
+
+const data = Astro.locals.starlightRoute.entry
+  .data as typeof Astro.locals.starlightRoute.entry.data & {
+  description?: string;
+  audiences?: AudienceKey[];
+  audienceNote?: string;
+  audienceOutcomes?: Partial<Record<AudienceKey, string[]>>;
+  titleBadge?: string;
+};
+
+const { description, audiences, audienceNote, audienceOutcomes, titleBadge } = data;
+
+const orderedAudiences = audiences?.length ? sortAudienceKeys(audiences) : [];
+const outcomeKeys = audienceOutcomes
+  ? sortAudienceKeys(
+      (Object.keys(audienceOutcomes) as AudienceKey[]).filter((k) => audienceOutcomes[k]?.length)
+    )
+  : [];
+const hasOutcomes = outcomeKeys.length > 0;
+---
+
+<div class="page-intro">
+  {
+    titleBadge ? (
+      <div class="page-title-row">
+        <Default />
+        <span
+          class="sl-badge sl-badge-note"
+          title="Legacy name in API paths and code: orchestrator"
+        >
+          {titleBadge}
+        </span>
+      </div>
+    ) : (
+      <Default />
+    )
+  }
+  {description && <p class="page-description">{description}</p>}
+  {
+    orderedAudiences.length > 0 && (
+      <p class="page-audience">
+        <span class="page-audience-label">Intended audience:</span>{' '}
+        {orderedAudiences.map((k) => audienceLabels[k]).join(', ')}
+      </p>
+    )
+  }
+  {audienceNote && <p class="page-audience-note">{audienceNote}</p>}
+  {
+    hasOutcomes && (
+      <details class="page-outcomes">
+        <summary class="page-outcomes-summary">Learning outcomes by role</summary>
+        <div class="page-outcomes-body">
+          {outcomeKeys.map((key) => (
+            <section class="page-outcome-role" aria-labelledby={`outcomes-${key}`}>
+              <p class="page-outcome-heading" id={`outcomes-${key}`}>
+                {audienceLabels[key]}
+              </p>
+              <ul class="page-outcome-list">
+                {audienceOutcomes![key]!.map((line) => (
+                  <li>{line}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      </details>
+    )
+  }
+</div>
+
+<style>
+  @layer starlight.components {
+    .page-intro {
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+    }
+
+    .page-title-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .page-title-row :global(h1) {
+      margin: 0;
+    }
+
+    .page-description {
+      margin: 0;
+      max-width: min(72ch, 100%);
+      font-size: var(--sl-text-lg);
+      line-height: var(--sl-line-height);
+      font-weight: 400;
+      color: var(--sl-color-gray-3);
+    }
+
+    .page-audience {
+      margin: 0;
+      max-width: 100%;
+      font-size: var(--sl-text-sm);
+      line-height: var(--sl-line-height);
+      color: var(--sl-color-gray-3);
+    }
+
+    .page-audience-label {
+      font-weight: 600;
+      color: var(--sl-color-gray-2);
+    }
+
+    .page-audience-note {
+      margin: 0;
+      max-width: 100%;
+      font-size: var(--sl-text-sm);
+      line-height: var(--sl-line-height);
+      color: var(--sl-color-gray-4);
+      font-style: italic;
+    }
+
+    .page-outcomes {
+      margin: 0.25rem 0 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--sl-color-hairline-light);
+      border-radius: 0.5rem;
+      background-color: color-mix(in oklch, var(--sl-color-accent) 4%, var(--sl-color-bg));
+      padding: 0.5rem 2.25rem;
+    }
+
+    .page-outcomes-summary {
+      cursor: pointer;
+      font-size: var(--sl-text-sm);
+      font-weight: 600;
+      color: var(--sl-color-gray-2);
+      list-style-position: outside;
+    }
+
+    .page-outcomes-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--sl-color-hairline-shade);
+    }
+
+    .page-outcome-role {
+      margin: 0;
+    }
+
+    .page-outcome-heading {
+      margin: 0 0 0.35rem;
+      font-size: var(--sl-text-sm);
+      font-weight: 600;
+      color: var(--sl-color-gray-2);
+    }
+
+    .page-outcome-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: var(--sl-text-sm);
+      line-height: var(--sl-line-height);
+      color: var(--sl-color-gray-3);
+    }
+
+    .page-outcome-list li {
+      margin-bottom: 0.25rem;
+    }
+  }
+</style>

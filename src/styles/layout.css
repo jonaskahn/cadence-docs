@@ -1,0 +1,319 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/*
+ * cadence design system — Starlight + Flexoki overrides.
+ * Unlayered rules win over @layer flexoki for same specificity.
+ */
+
+:root,
+::backdrop {
+  /* Dark mode (default) — navy-tinted ink surfaces */
+  --sl-color-white: #e8e4dc;
+  --sl-color-gray-1: #f4f1eb;
+  --sl-color-gray-2: #f0ede7;
+  --sl-color-gray-3: #c8c2ba;
+  --sl-color-gray-4: #8a8580;
+  --sl-color-gray-5: #2a3444;
+  --sl-color-gray-6: #1a2130;
+  --sl-color-black: #0d1116;
+
+  --sl-hue-orange: 16;
+  --sl-color-orange-low: #3d1810;
+  --sl-color-orange: #e8704a;
+  --sl-color-orange-high: #fcd4c4;
+
+  --sl-hue-green: 155;
+  --sl-color-green-low: #0f2a1f;
+  --sl-color-green: #2bbd8a;
+  --sl-color-green-high: #c5f0df;
+
+  --sl-hue-blue: 206;
+  /* Semantic blue ramp aligned with Microsoft Fluent on-dark */
+  --sl-color-blue-low: #092338;
+  --sl-color-blue: #479ef5;
+  --sl-color-blue-high: #b6d9fa;
+
+  --sl-hue-purple: 250;
+  --sl-color-purple-low: #261c39;
+  --sl-color-purple: #8b7fd8;
+  --sl-color-purple-high: #ddd8f7;
+
+  --sl-hue-red: 5;
+  --sl-color-red-low: #391716;
+  --sl-color-red: #e8705f;
+  --sl-color-red-high: #ffd4cc;
+
+  /* Accent: Microsoft Fluent brand (dark theme) */
+  --sl-color-accent-low: #0e1d33;
+  --sl-color-accent: #479ef5;
+  --sl-color-accent-high: #cfe4fa;
+
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--sl-color-accent-high);
+  --sl-color-text-invert: var(--sl-color-black);
+  --sl-color-bg: var(--sl-color-black);
+  --sl-color-bg-nav: #13181f;
+  --sl-color-bg-sidebar: #13181f;
+  --sl-color-bg-inline-code: var(--sl-color-gray-5);
+  --sl-color-bg-accent: var(--sl-color-accent);
+  --sl-color-hairline-light: var(--sl-color-gray-5);
+  --sl-color-hairline: #252d3a;
+  --sl-color-hairline-shade: var(--sl-color-bg);
+
+  --sl-color-backdrop-overlay: hsla(210, 25%, 5%, 0.66);
+
+  --sl-shadow-sm: 0px 1px 1px hsla(0, 0%, 0%, 0.12), 0px 2px 1px hsla(0, 0%, 0%, 0.24);
+  --sl-shadow-md:
+    0px 8px 4px hsla(0, 0%, 0%, 0.08), 0px 5px 2px hsla(0, 0%, 0%, 0.08),
+    0px 3px 2px hsla(0, 0%, 0%, 0.12), 0px 1px 1px hsla(0, 0%, 0%, 0.15);
+  --sl-shadow-lg:
+    0px 25px 7px hsla(0, 0%, 0%, 0.03), 0px 16px 6px hsla(0, 0%, 0%, 0.1),
+    0px 9px 5px hsla(210, 30%, 5%, 0.33), 0px 4px 4px hsla(0, 0%, 0%, 0.35),
+    0px 4px 2px hsla(0, 0%, 0%, 0.2);
+
+  --sl-font: 'Inter', ui-sans-serif, system-ui, 'Segoe UI', Arial, sans-serif;
+}
+
+:root[data-theme='light'],
+[data-theme='light'] ::backdrop {
+  --sl-color-white: #14181f;
+  --sl-color-gray-1: #14181f;
+  --sl-color-gray-2: #14181f;
+  --sl-color-gray-3: #6d727b;
+  --sl-color-gray-4: #878580;
+  --sl-color-gray-5: #d8d3ca;
+  --sl-color-gray-6: #f5f3ef;
+  --sl-color-gray-7: #faf8f5;
+  --sl-color-black: #fcfbf8;
+
+  --sl-color-orange-high: #9d4310;
+  --sl-color-orange: #d85a30;
+  --sl-color-orange-low: #f8ece6;
+
+  --sl-color-green-high: #1d6b4f;
+  --sl-color-green: #1d9e75;
+  --sl-color-green-low: #e8f1eb;
+
+  /* Semantic blue ramp aligned with Microsoft Fluent (light theme) */
+  --sl-color-blue-high: #115ea3;
+  --sl-color-blue: #0078d4;
+  --sl-color-blue-low: #ebf3fc;
+
+  --sl-color-purple-high: #4f3685;
+  --sl-color-purple: #534ab7;
+  --sl-color-purple-low: #eeedfe;
+
+  --sl-color-red-high: #942822;
+  --sl-color-red: #c03e35;
+  --sl-color-red-low: #f8e8e6;
+
+  /* Accent: Microsoft Fluent brand (light theme) */
+  --sl-color-accent-low: #ebf3fc;
+  --sl-color-accent: #0078d4;
+  --sl-color-accent-high: #115ea3;
+
+  --sl-color-text-accent: var(--sl-color-accent);
+  --sl-color-text-invert: var(--sl-color-black);
+  --sl-color-bg-nav: #fcfbf8;
+  --sl-color-bg-sidebar: #fcfbf8;
+  --sl-color-bg-inline-code: var(--sl-color-gray-6);
+  --sl-color-bg-accent: var(--sl-color-accent);
+  --sl-color-hairline-light: var(--sl-color-gray-6);
+  --sl-color-hairline-shade: var(--sl-color-gray-6);
+
+  --sl-color-backdrop-overlay: hsla(210, 15%, 20%, 0.33);
+
+  --sl-shadow-sm: 0px 1px 1px hsla(20, 24%, 31%, 0.06), 0px 2px 1px hsla(20, 24%, 31%, 0.06);
+  --sl-shadow-md:
+    0px 8px 4px hsla(20, 24%, 31%, 0.03), 0px 5px 2px hsla(20, 24%, 31%, 0.03),
+    0px 3px 2px hsla(20, 24%, 31%, 0.06), 0px 1px 1px hsla(20, 24%, 31%, 0.06);
+  --sl-shadow-lg:
+    0px 25px 7px rgba(20, 24, 31, 0.04), 0px 16px 6px hsla(20, 24%, 31%, 0.04),
+    0px 9px 5px hsla(20, 24%, 31%, 0.06), 0px 4px 4px hsla(20, 24%, 31%, 0.08),
+    0px 4px 2px hsla(20, 24%, 31%, 0.04);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html[data-theme='light'] body {
+  background:
+    radial-gradient(circle at top left, rgba(31, 58, 95, 0.045), transparent 28%),
+    linear-gradient(180deg, #f6f4ef 0%, #f1eee8 100%);
+  color: #14181f;
+}
+
+html[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at top left, rgba(31, 58, 95, 0.15), transparent 28%),
+    linear-gradient(180deg, #0d1116 0%, #111720 100%);
+}
+
+/* Reading layout + size tweaks (Starlight + Flexoki fluid type cap) */
+:root {
+  --sl-sidebar-width: 24rem !important;
+  --sl-content-width: 78rem !important;
+  --sl-sidebar-pad-x: 2rem !important;
+
+  /* cadence: rounder UI — shared across Starlight overrides + tokens */
+  --cadence-radius-xs: 0.375rem;
+  --cadence-radius-sm: 0.5rem;
+  --cadence-radius-md: 0.875rem;
+  --cadence-radius-lg: 1.125rem;
+  --cadence-radius-xl: 1.375rem;
+  --cadence-radius-2xl: 1.75rem;
+}
+
+/* Search: larger corner radius for modal + Pagefind results */
+#starlight__search {
+  --sl-search-corners: calc(1rem * var(--pagefind-ui-scale, 1));
+}
+
+site-search button[data-open-modal] kbd,
+site-search button[data-open-modal] kbd kbd {
+  border-radius: var(--cadence-radius-sm);
+}
+
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    border-radius: var(--cadence-radius-lg);
+  }
+
+  site-search dialog {
+    border-radius: var(--cadence-radius-lg);
+  }
+}
+
+/* Markdown: code blocks + inline code */
+.sl-markdown-content pre:not(:where(.not-content *)) {
+  border-radius: var(--cadence-radius-lg);
+}
+
+.sl-markdown-content code:not(:where(.not-content *)) {
+  border-radius: var(--cadence-radius-sm);
+}
+
+/* Cards, asides, file tree, link cards */
+.sl-markdown-content .starlight-aside {
+  border-radius: var(--cadence-radius-lg);
+}
+
+.sl-markdown-content .card {
+  border-radius: var(--cadence-radius-lg);
+}
+
+.sl-markdown-content .card .icon {
+  border-radius: var(--cadence-radius-md);
+}
+
+.starlight-aside {
+  border-radius: var(--cadence-radius-lg);
+}
+
+.sl-link-card {
+  border-radius: var(--cadence-radius-lg);
+}
+
+starlight-file-tree {
+  border-radius: var(--cadence-radius-lg);
+}
+
+.sl-badge {
+  border-radius: var(--cadence-radius-sm);
+}
+
+/* Sidebar + TOC links */
+.sidebar-content a {
+  border-radius: var(--cadence-radius-md);
+}
+
+.right-sidebar-panel ul:not(.isMobile) a {
+  border-radius: var(--cadence-radius-md);
+}
+
+/* Pagination */
+.pagination-links a {
+  border-radius: var(--cadence-radius-lg);
+}
+
+/* Mobile TOC */
+mobile-starlight-toc .toggle {
+  border-radius: var(--cadence-radius-lg);
+}
+
+mobile-starlight-toc .dropdown {
+  border-radius: var(--cadence-radius-lg);
+}
+
+.content-panel {
+  --sl-flexoki-text-base: min(calc(0.84375rem + 0.15vw), 1rem);
+  --sl-flexoki-text-sm: calc(0.875 * var(--sl-flexoki-text-base));
+}
+
+/*
+ * Header theme / language selects: Starlight uses label:hover { color: var(--sl-color-white) },
+ * which clashes with our light-mode gray ramp. Use accent for a clear hover that matches both themes.
+ */
+starlight-theme-select label:hover,
+starlight-lang-select label:hover {
+  color: var(--sl-color-accent);
+}
+
+starlight-theme-select label svg,
+starlight-lang-select label svg {
+  flex-shrink: 0;
+}
+
+/* Display serif for headings — cadence editorial */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content .heading,
+.page-title,
+[data-page-title] {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+/* MDX / marketing utility classes (match reference HTML) */
+.eyebrow {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6d727b;
+}
+
+html[data-theme='dark'] .eyebrow {
+  color: #a8a49c;
+}
+
+.section-shell {
+  background: rgba(252, 251, 248, 0.88);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(191, 184, 174, 0.55);
+  box-shadow: 0 12px 28px rgba(20, 24, 31, 0.04);
+  border-radius: 2.5rem;
+}
+
+html[data-theme='dark'] .section-shell {
+  background: rgba(26, 33, 48, 0.75);
+  border-color: rgba(42, 52, 68, 0.9);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.chip {
+  border-radius: 1rem;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(20, 24, 31, 0.06);
+}
+
+html[data-theme='dark'] .chip:hover {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}

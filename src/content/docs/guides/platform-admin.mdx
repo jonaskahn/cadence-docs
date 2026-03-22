@@ -1,0 +1,145 @@
+---
+title: Platform admin
+description: Sys-admin routes for tiers, global settings, pool health, provider catalog, access control, and telemetry.
+sidebar:
+  order: 5
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Clarify platform admin powers versus org admin boundaries.
+  'business-analyst':
+    - Document admin-only workflows for support and operations teams.
+  'solution-architect':
+    - Restrict admin routes via network policy and privileged access tooling.
+  developer:
+    - Use cadence:system:* permissions and admin routers safely.
+  tester:
+    - Attempt privilege escalation and cross-tenant access negative tests.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Platform admin routes configure the **entire deployment** — quota tiers, runtime flags, the provider model catalog, RBAC roles, and OAuth2 clients. These are `cadence:system:*` operations: an org admin's token will receive `403` on every route on this page. Admin HTTP handlers live under `cadence.api.admin`; `SettingsService` coordinates the pool and optional RabbitMQ broadcast when changes affect running instances.
+
+## Summary for stakeholders
+
+- **Blast radius** — These routes change behavior for every tenant simultaneously. A misconfigured tier quota or a disabled provider model affects all orgs.
+- **Separation of duties** — Org admins govern their own orchestrators, plugins, and users. Platform admins govern the infrastructure those orgs run on. The two permission namespaces (`cadence:org:*` vs `cadence:system:*`) enforce this boundary.
+
+## Business analysis
+
+- **Support workflows** — Document which incident types require sys-admin access versus org-scoped admin, so support engineers know which level to escalate to.
+- **Audit** — Each `cadence:system:*` permission name is a distinct audit event type; pair them with change records in your ITSM.
+
+## Architecture and integration
+
+All routes live under `/api/admin/*`. They are registered by `register_api_routers` in `cadence.core.router` alongside org-scoped routes. `SettingsService` bridges `global_settings` rows and optional RabbitMQ notifications so pool nodes can react without full restarts when messaging is available.
+
+## Subscription tier management
+
+Subscription tiers define the quota limits that constrain what each org can do — maximum orchestrators, hot instances, chat RPM, and similar capacity controls. Tiers are stored as JSON objects in the `global_settings` table under keys like `tier.free`, `tier.pro`.
+
+| Method  | Path                           | Permission                   | Action                                             |
+| ------- | ------------------------------ | ---------------------------- | -------------------------------------------------- |
+| `GET`   | `/api/admin/tiers`             | `cadence:system:tiers:read`  | List all tier definitions and their current quotas |
+| `PATCH` | `/api/admin/tiers/{tier_name}` | `cadence:system:tiers:write` | Update quota limits for a tier                     |
+
+Valid tier names: `free`, `plus`, `pro`, `premium`, `business`, `enterprise`. Patching a tier takes effect on the next request that reads quota for an org on that tier — there is no restart required.
+
+## Global settings
+
+Global settings are runtime key/value pairs that control platform behavior without restarting the process. They are the "Tier 2" layer of the settings cascade — above the hard-coded defaults in `AppSettings` and below per-org configuration. Examples include token TTLs, pool limits, and OTel configuration.
+
+| Method  | Path                        | Permission                      | Action                        |
+| ------- | --------------------------- | ------------------------------- | ----------------------------- |
+| `GET`   | `/api/admin/settings`       | `cadence:system:settings:read`  | List all global settings      |
+| `PATCH` | `/api/admin/settings/{key}` | `cadence:system:settings:write` | Update a global setting value |
+
+When a setting is updated and RabbitMQ is available, the handler publishes a `global_settings_changed` event so pool nodes can reload affected values without polling.
+
+<Aside type="note" title="OTel settings live here">
+  OpenTelemetry configuration (`otel.*` keys) is stored as global settings and updated through this
+  surface — see [Observability](/features/observability/).
+</Aside>
+
+## Orchestrator health and pool stats
+
+These endpoints let platform admins inspect the current state of every running orchestrator instance and the pool as a whole.
+
+| Method | Path                    | Permission                      | Action                                                                                                             |
+| ------ | ----------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `GET`  | `/api/admin/health`     | `cadence:system:health:read`    | Health check all loaded orchestrator instances — returns framework, mode, plugin count, and readiness per instance |
+| `GET`  | `/api/admin/pool/stats` | `cadence:system:telemetry:read` | Pool statistics: total instances, tier counts (hot/warm/cold), shared model and bundle counts, memory estimate     |
+
+The unauthenticated `GET /health` endpoint remains the right choice for load balancer probes. Use `/api/admin/health` for diagnostics and incident investigation — it gives per-instance detail rather than a single boolean. See [Monitoring](/guides/monitoring/) for how to interpret pool stats during incidents.
+
+## Provider model catalog
+
+The provider catalog is the platform-level list of LLM models available for orgs to use. Adding a model here makes it selectable in org LLM configuration; removing or disabling it prevents new selections but does not stop already-running orchestrators.
+
+| Method  | Path                                                | Permission                       | Action                                                              |
+| ------- | --------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| `GET`   | `/api/admin/providers/models`                       | `cadence:system:providers:read`  | List all provider models including disabled ones                    |
+| `POST`  | `/api/admin/providers/{provider}/models`            | `cadence:system:providers:write` | Add a new model to the catalog                                      |
+| `PATCH` | `/api/admin/providers/{provider}/models/{model_id}` | `cadence:system:providers:write` | Update model metadata (display name, pricing, aliases, active flag) |
+
+When adding a model, `provider` is the framework-level provider identifier (e.g. `openai`, `anthropic`). The `model_id` must be unique per provider; a conflict returns `409`.
+
+## Access control management
+
+Platform admins can create and manage custom RBAC roles and OAuth2 clients beyond the built-in roles.
+
+| Method  | Path                                     | Permission                           | Action                                                     |
+| ------- | ---------------------------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| `GET`   | `/api/admin/roles`                       | `cadence:system:roles:read`          | List all custom roles                                      |
+| `POST`  | `/api/admin/roles`                       | `cadence:system:roles:write`         | Create a custom role with a set of `cadence:*` permissions |
+| `PATCH` | `/api/admin/roles/{role_id}/permissions` | `cadence:system:roles:write`         | Update permissions on an existing custom role              |
+| `POST`  | `/api/admin/roles/{role_id}/users`       | `cadence:system:roles:write`         | Assign roles to users                                      |
+| `GET`   | `/api/admin/oauth-clients`               | `cadence:system:oauth_clients:read`  | List registered OAuth2 clients                             |
+| `POST`  | `/api/admin/oauth-clients`               | `cadence:system:oauth_clients:write` | Register a new OAuth2 client                               |
+
+Built-in role names (`sys_admin`, `org_admin`, `org_member`, etc.) cannot be modified. Custom roles can carry any permission from the `PERMISSIONS` set. See [Role-based access control](/features/role-based-access-control/) for the full permission table.
+
+## Usage statistics
+
+| Method | Path             | Permission                            | Action                      |
+| ------ | ---------------- | ------------------------------------- | --------------------------- |
+| `GET`  | `/api/stats/...` | `cadence:org:stats:read` (org-scoped) | Org-scoped usage statistics |
+
+Stats routes are org-scoped, not platform-scoped — an org admin can query their own stats without sys-admin access.
+
+## Limitations
+
+- **Telemetry reload** — Changing OTel settings via `/api/admin/settings` publishes a `telemetry_changed` event when RabbitMQ is available. Without messaging, the change is written to the database but pool nodes pick it up only at next startup or explicit reload.
+- **Tier patching scope** — `PATCH /api/admin/tiers/{tier_name}` only accepts the six known tier names. Custom tier names are not supported.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Monitoring"
+    href="/guides/monitoring/"
+    description="Health endpoints and pool stats for operational probes."
+  />
+  <LinkCard
+    title="Configuration"
+    href="/guides/configuration/"
+    description="Environment variables and production checklist."
+  />
+  <LinkCard
+    title="Observability"
+    href="/features/observability/"
+    description="OpenTelemetry keys stored as global settings."
+  />
+  <LinkCard
+    title="Role-based access control"
+    href="/features/role-based-access-control/"
+    description="Permission strings and built-in role definitions."
+  />
+</CardGrid>

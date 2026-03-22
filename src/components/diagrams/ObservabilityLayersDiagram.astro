@@ -1,0 +1,149 @@
+---
+/**
+ * Three observability layers described in docs; settings keys from cadence API telemetry metadata.
+ */
+---
+
+<div class="diagram-wrap">
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 400 168"
+    role="img"
+    aria-labelledby="ob-title ob-desc"
+    class="diagram-svg"
+  >
+    <title id="ob-title">Observability layers</title>
+    <desc id="ob-desc">
+      Structured logs on stdout, health endpoints for probes, optional OpenTelemetry export via
+      OTLP.
+    </desc>
+    <rect
+      x="12"
+      y="8"
+      width="376"
+      height="44"
+      rx="6"
+      fill="currentColor"
+      fill-opacity="0.07"
+      stroke="currentColor"
+      stroke-width="1"></rect>
+    <text
+      x="200"
+      y="30"
+      text-anchor="middle"
+      font-size="11"
+      font-weight="600"
+      font-family="var(--sl-font, system-ui)"
+      fill="currentColor"
+    >
+      Structured logs (stdout)
+    </text>
+    <text
+      x="200"
+      y="46"
+      text-anchor="middle"
+      font-size="9"
+      font-family="var(--sl-font, system-ui)"
+      fill="currentColor"
+      fill-opacity="0.82"
+    >
+      CADENCE_LOG_FORMAT=json
+    </text>
+    <rect
+      x="12"
+      y="62"
+      width="376"
+      height="44"
+      rx="6"
+      fill="currentColor"
+      fill-opacity="0.06"
+      stroke="currentColor"
+      stroke-width="1"></rect>
+    <text
+      x="200"
+      y="84"
+      text-anchor="middle"
+      font-size="11"
+      font-weight="600"
+      font-family="var(--sl-font, system-ui)"
+      fill="currentColor"
+    >
+      Health &amp; pool endpoints
+    </text>
+    <text
+      x="200"
+      y="100"
+      text-anchor="middle"
+      font-size="9"
+      font-family="var(--sl-font, system-ui)"
+      fill="currentColor"
+      fill-opacity="0.82"
+    >
+      /health, admin pool stats (see Monitoring guide)
+    </text>
+    <rect
+      x="12"
+      y="116"
+      width="376"
+      height="44"
+      rx="6"
+      fill="currentColor"
+      fill-opacity="0.06"
+      stroke="currentColor"
+      stroke-width="1"
+      stroke-dasharray="4 2"></rect>
+    <text
+      x="200"
+      y="138"
+      text-anchor="middle"
+      font-size="11"
+      font-weight="600"
+      font-family="var(--sl-font, system-ui)"
+      fill="currentColor"
+    >
+      OpenTelemetry (optional)
+    </text>
+    <text
+      x="200"
+      y="154"
+      text-anchor="middle"
+      font-size="9"
+      font-family="var(--sl-font, system-ui)"
+      fill="currentColor"
+      fill-opacity="0.82"
+    >
+      otel.* via admin APIs → OTLP
+    </text>
+  </svg>
+  <p class="diagram-caption">
+    Implementation references: <code>cadence.api.telemetry</code> metadata keys,
+    <code>cadence.api.health.router</code>, logging setup in app entry.
+  </p>
+</div>
+
+<style>
+  @layer starlight.components {
+    .diagram-wrap {
+      color: var(--sl-color-gray-2);
+      margin: 0.75rem 0 1.25rem;
+    }
+
+    .diagram-svg {
+      display: block;
+      width: 100%;
+      max-width: 30rem;
+      height: auto;
+    }
+
+    .diagram-caption {
+      margin: 0.5rem 0 0;
+      font-size: var(--sl-text-sm);
+      color: var(--sl-color-gray-4);
+      max-width: 34rem;
+    }
+
+    .diagram-caption code {
+      font-size: 0.92em;
+    }
+  }
+</style>

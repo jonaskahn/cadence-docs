@@ -1,0 +1,80 @@
+---
+title: Chat and engine
+description: Chat completion headers, orchestrator vs central point, and engine prompt helpers.
+sidebar:
+  order: 12
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Summarize chat as the primary user-facing workload through Cadence HTTP APIs.
+  'business-analyst':
+    - Specify headers (including X-ORG-ID) and orchestrator selection rules for stories.
+  'solution-architect':
+    - Relate streaming responses, engine layer, and rate limits to client design.
+  developer:
+    - Follow chat routes and engine helpers under cadence.api.chat and related modules.
+  tester:
+    - Exercise streaming and non-streaming paths, errors, and org scoping.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+**Chat** sends a user message to a chosen AI **orchestrator instance** or **central point** inside an organization-scoped request. Always send **which org** and **which instance** via headers; expect **400** if headers are incomplete. Follow the chat HTTP router for exact header and path rules.
+
+## Chat API
+
+Chat API prefix **`/api/chat`**.
+
+### Headers
+
+| Header                                    | Required                                   | Role                                                              |
+| ----------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| **`X-ORG-ID`**                            | Yes (for completion + conversation routes) | Tenant scope; combined with **`org_context`**.                    |
+| **`X-INSTANCE-ID`** or **`X-CENTRAL-ID`** | For **`POST /completion`**                 | Select orchestrator instance vs **central point** alias.          |
+| Auth                                      | Bearer / API key                           | **`CHAT_USE`** / **`CHAT_HISTORY_READ`** via **`roles_allowed`**. |
+
+**`POST /api/chat/completion`** — If both instance and central headers are missing → **400**. Implementation branches to **`_handle_instance_chat`** or **`_handle_central_point_chat`**, then **`OrchestratorService`** with rate limits and quotas enforced in the domain layer.
+
+### Conversations
+
+**`GET /api/chat/conversations`** and **`GET /api/chat/conversations/{id}/messages`** require **`CHAT_HISTORY_READ`** and **`X-ORG-ID`**.
+
+## Engine API
+
+The engine router exposes **read-only** default **prompt text** for LangGraph supervisor and grounded modes (`/api/engine/supervisor/prompts`, `/api/engine/grounded/prompts`). Treat these endpoints like **internal documentation helpers**; harden network access if you expose the API on the public internet.
+
+## Limitations
+
+- **Chat paths** may treat some callers as anonymous in specific flows; confirm expected behavior in the chat router before writing acceptance tests.
+- **Streaming (SSE)** timing depends on the engine adapter; set client timeouts accordingly.
+
+<Aside type="note" title="Rate limits">
+  **`RateLimitMiddleware`** applies tier-based RPM; chat may use **`rate_chat_limit_rpm`** from
+  quota (see rate limiting middleware).
+</Aside>
+
+## Related pages
+
+<CardGrid>
+  <LinkCard
+    title="Orchestrator instances"
+    href="/features/ai-apps/"
+    description="Creating instances and tiers for chat routing."
+  />
+  <LinkCard
+    title="Real-time streaming"
+    href="/features/real-time-streaming/"
+    description="SSE events and client parsing."
+  />
+  <LinkCard
+    title="Central Points"
+    href="/features/central-points/"
+    description="Stable aliases for orchestrators."
+  />
+</CardGrid>

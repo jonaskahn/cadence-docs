@@ -1,0 +1,290 @@
+---
+title: Orchestration modes
+description: Supervisor and grounded topologies, mode_config settings, NodeConfig per-node customization, and resource_id for grounded context anchoring.
+sidebar:
+  order: 6
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Contrast supervisor versus grounded modes for complexity and safety postures.
+  'business-analyst':
+    - Capture mode_config and node-level customization in acceptance language.
+  'solution-architect':
+    - Explain resource_id anchoring and topology constraints for integration designs.
+  developer:
+    - Apply mode_config and NodeConfig fields when building orchestrator configs.
+  tester:
+    - Validate mode-specific settings, grounded context injection, and per-node override behavior.
+---
+
+import { Aside, CardGrid, LinkCard, TabItem, Tabs } from '@astrojs/starlight/components';
+
+An **orchestration mode** defines the routing topology inside the agent graph — how intent is classified, how tools are called, how results are validated, and how the final response is assembled. The `mode` is set at creation alongside `framework_type` and both are immutable for the life of the orchestrator.
+
+## Mode overview
+
+Two modes are active today. Additional modes are registered in the factory but not yet implemented — creating an orchestrator with an unimplemented mode will succeed at the API level but any chat request against it will return an error.
+
+| Mode          | Framework                    | Status              | Use case                                                                               |
+| ------------- | ---------------------------- | ------------------- | -------------------------------------------------------------------------------------- |
+| `supervisor`  | `langgraph`                  | Active              | Open-ended assistant with multi-step tool routing, planning, and optional validation   |
+| `grounded`    | `langgraph`                  | Active              | Answers scoped to a specific resource anchor — `resource_id` required per chat request |
+| `coordinator` | `langgraph`, `openai_agents` | Not yet implemented | Multi-agent coordination topology                                                      |
+| `handoff`     | `langgraph`, `openai_agents` | Not yet implemented | Sequential agent handoffs                                                              |
+
+<Aside type="caution" title="Immutable after creation">
+  `mode` and `framework_type` are frozen at row creation. To change topology, create a new
+  orchestrator and migrate traffic.
+</Aside>
+
+## Architecture overview
+
+<Tabs>
+    <TabItem label="Supervisor">
+
+        ```mermaid
+        flowchart TD
+        IN[Incoming message] --> CL[Router node]
+        CL -->|direct response| RE[Responder node]
+        CL -->|clarify| CLA[Clarifier node]
+        CL -->|plan| PL[Planner node]
+        PL --> EX[Executor node — tool calls]
+        EX --> |tool results| PL
+        PL --> |max_agent_hops reached or done| SY[Synthesizer node]
+        RE --> OUT[Response]
+        SY --> VA{enabled_llm_validation?}
+        VA -->|yes| VN[Validation node]
+        VA -->|no| OUT
+        VN --> OUT
+        ```
+
+        The supervisor topology routes incoming intent through a router node, which decides whether to answer directly, ask for clarification, or plan a multi-step tool sequence. The planner calls tools through the executor, iterates up to `max_agent_hops` times, then passes results to the synthesizer. Each logical node in the graph can be customized individually via `NodeConfig`.
+
+    </TabItem>
+    <TabItem label="Grounded">
+
+        ```mermaid
+        flowchart TD
+        IN[Incoming message + resource_id] --> RN[Router node]
+        RN --> PL[Planner node]
+        PL --> EX[Executor node — tool calls scoped to resource]
+        EX --> PL
+        PL --> |max_agent_hops or max_tool_rounds reached| SY[Synthesizer node]
+        SY --> VA{enabled_validator?}
+        VA -->|yes| VN[Validator node]
+        VA -->|no| OUT[Response]
+        VN --> OUT
+        ```
+
+        Every grounded chat request must include a `resource_id`. The mode constrains tool execution and context to that anchor object. `scope_rules` injects additional constraints into the agent's system context at runtime.
+
+    </TabItem>
+
+</Tabs>
+
+## Data model — mode_config
+
+`mode_config` is nested inside the orchestrator's `config` JSON object. All keys are optional; omitting a key uses the default value.
+
+```json title="orchestrator config.mode_config (supervisor example)"
+{
+  "default_llm_config_id": "<uuid>",
+  "mode_config": {
+    "max_agent_hops": 25,
+    "max_tool_rounds": 3,
+    "enabled_parallel_tool_calls": true,
+    "node_execution_timeout": 60,
+    "enabled_llm_validation": false,
+    "enabled_clarification_intent": true
+  }
+}
+```
+
+### Base settings (all modes)
+
+From `BaseOrchestratorSettings` — apply to every mode:
+
+| Field                    | Default | Description                                                                    |
+| ------------------------ | ------- | ------------------------------------------------------------------------------ |
+| `node_execution_timeout` | `60`    | Per-node execution timeout in seconds                                          |
+| `max_context_window`     | `16000` | Maximum token context window                                                   |
+| `message_context_window` | `10`    | Number of past messages included in context (supervisor overrides this to `5`) |
+| `enabled_auto_compact`   | `false` | Auto-compact context when it exceeds the window                                |
+| `enabled_suggestion`     | `false` | Enable follow-up suggestion generation after each response                     |
+
+### Supervisor-specific settings
+
+From `BaseSupervisorSettings`:
+
+| Field                          | Default | Description                                                    |
+| ------------------------------ | ------- | -------------------------------------------------------------- |
+| `max_agent_hops`               | `25`    | Maximum recursive tool-call cycles before forced synthesis     |
+| `max_tool_rounds`              | `3`     | Maximum tool call rounds per planner step                      |
+| `enabled_parallel_tool_calls`  | `true`  | Allow concurrent tool calls in a single planner step           |
+| `enabled_llm_validation`       | `false` | Run a validation LLM pass on the draft response before sending |
+| `enabled_clarification_intent` | `true`  | Route ambiguous queries through the clarifier before planning  |
+| `message_context_window`       | `5`     | Supervisor overrides the base default of 10                    |
+
+### Grounded-specific settings
+
+From `BaseGroundedSettings`:
+
+| Field               | Default | Description                                                               |
+| ------------------- | ------- | ------------------------------------------------------------------------- |
+| `scope_rules`       | `""`    | Free-text constraints injected into the agent's system context at runtime |
+| `max_agent_hops`    | `25`    | Maximum recursive tool-call cycles before forced synthesis                |
+| `max_tool_rounds`   | `3`     | Maximum tool-call rounds before forced synthesis                          |
+| `enabled_validator` | `true`  | Run a validator pass to check answer quality against the resource         |
+
+## NodeConfig — per-node LLM customization
+
+Each logical node in the graph can have its own LLM config, model, and prompt override, independent of the orchestrator's `default_llm_config_id`. This lets you run a cheap model for routing and a more capable one for synthesis.
+
+```python title="cadence/engine/base/node_config.py"
+class NodeConfig(BaseModel):
+    llm_config_id: Optional[str] = None  # Override org-level default for this node
+    model_name: Optional[str] = None     # Model name override (e.g. "gpt-4o-mini" for fast nodes)
+    prompt: Optional[str] = None         # System prompt override for this node
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    timeout: Optional[int] = None        # Per-node timeout in seconds
+```
+
+Nodes that accept `NodeConfig` overrides:
+
+| Mode       | Configurable nodes                                                                                                                                               |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supervisor | `router_node`, `planner_node`, `synthesizer_node`, `validation_node`, `clarifier_node`, `responder_node`, `autocompact`, `suggestion_node`, `error_handler_node` |
+| Grounded   | `router_node`, `planner_node` (alias: `agent_node`), `synthesizer_node`, `autocompact`, `suggestion_node`, `error_handler_node`                                  |
+
+### Example: cheap model for routing, stronger model for synthesis
+
+```json title="orchestrator config"
+{
+  "default_llm_config_id": "<gpt4o-config-uuid>",
+  "mode_config": {
+    "router_node": {
+      "model_name": "gpt-4o-mini"
+    },
+    "synthesizer_node": {
+      "model_name": "gpt-4o",
+      "temperature": 0.3
+    }
+  }
+}
+```
+
+## Grounded mode — resource_id
+
+Grounded mode requires a `resource_id` on every chat request. This is the anchor object — a document ID, URL, database record ID, or any string — that constrains what the agent is allowed to answer about.
+
+```python title="cadence/api/chat/schemas.py"
+class ChatCompletionRequest(BaseModel):
+    message: str                      # Required; 1–1000 characters
+    conversation_id: Optional[str]    # Resumes an existing thread
+    stream: bool = True
+    resource_id: Optional[str]        # Required for grounded mode
+```
+
+The `resource_id` value is written into the graph's initial state as `state.resource_id`. Plugin tool nodes read it to scope their queries:
+
+```python title="plugin tool handler (example)"
+resource_id = state.get("resource_id")
+results = await db.query(doc_id=resource_id, question=query)
+```
+
+<Aside type="note" title="resource_id is not validated by the platform">
+  Cadence passes `resource_id` directly into the graph state — it does not check whether the
+  resource exists or whether the user has access to it. Access control for the underlying resource
+  is the plugin's responsibility.
+</Aside>
+
+## Creating orchestrators in each mode
+
+<Tabs>
+    <TabItem label="Supervisor (langgraph)">
+
+        ```json title="POST /api/orgs/{org_id}/orchestrators"
+        {
+            "name": "General Purpose Assistant",
+            "framework_type": "langgraph",
+            "mode": "supervisor",
+            "active_plugin_ids": ["com.example.web-search"],
+            "tier": "hot",
+            "config": {
+                "default_llm_config_id": "<uuid>",
+                "mode_config": {
+                    "max_agent_hops": 10,
+                    "max_tool_rounds": 3,
+                    "enabled_parallel_tool_calls": true,
+                    "enabled_clarification_intent": true,
+                    "enabled_llm_validation": false
+                }
+            }
+        }
+        ```
+
+    </TabItem>
+    <TabItem label="Grounded (langgraph)">
+
+        ```json title="POST /api/orgs/{org_id}/orchestrators"
+        {
+            "name": "Document QA",
+            "framework_type": "langgraph",
+            "mode": "grounded",
+            "active_plugin_ids": ["com.example.doc-retrieval"],
+            "tier": "warm",
+            "config": {
+                "default_llm_config_id": "<uuid>",
+                "mode_config": {
+                    "scope_rules": "Answer only from the provided document. Do not use general knowledge.",
+                    "max_tool_rounds": 3,
+                    "enabled_validator": true
+                }
+            }
+        }
+        ```
+
+        Every chat request against a grounded orchestrator must include `"resource_id": "<document-id>"`.
+
+    </TabItem>
+
+</Tabs>
+
+## Troubleshooting
+
+| Symptom                                   | Cause                                                                                    | Fix                                                                                   |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Chat returns `UnsupportedOperationError`  | Orchestrator mode is registered but not yet implemented (`coordinator`, `handoff`, etc.) | Use `supervisor` or `grounded` mode                                                   |
+| Agent loops without completing            | `max_agent_hops` too high or tool always returns partial results                         | Reduce `max_agent_hops`; fix tool return logic                                        |
+| Grounded mode ignores `resource_id`       | Plugin tool doesn't read `state.resource_id`                                             | Update the plugin to scope queries using `state["resource_id"]`                       |
+| Chat fails in grounded mode               | `resource_id` missing from request                                                       | Always pass `resource_id` in the chat body for grounded orchestrators                 |
+| Router sends all queries to the same path | `enabled_clarification_intent` catching too broadly                                      | Set `enabled_clarification_intent: false` or tune the router via `router_node.prompt` |
+| Validation node rejects valid responses   | `enabled_llm_validation` prompt too strict                                               | Set `enabled_llm_validation: false` or override `validation_node.prompt`              |
+| Need to change mode                       | Mode is immutable                                                                        | Create a new orchestrator; update central points to reference it                      |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Orchestration backends"
+    href="/features/orchestration-backends/"
+    description="Framework capabilities, provider compatibility, and orchestrator CRUD."
+  />
+  <LinkCard
+    title="AI Agent system"
+    href="/features/plugin-system/"
+    description="How plugins provide tools to the agent graph in each mode."
+  />
+  <LinkCard
+    title="Real-time streaming"
+    href="/features/real-time-streaming/"
+    description="Chat request schema, resource_id field, and SSE event lifecycle."
+  />
+</CardGrid>

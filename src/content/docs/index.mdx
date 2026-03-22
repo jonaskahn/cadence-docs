@@ -1,0 +1,59 @@
+---
+title: Let's explore
+description: Cadence AI Orchestration Platform — multi-tenant AI Apps platform.
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Find the shortest path from this splash page to scope and risk framing.
+  'business-analyst':
+    - Jump to concepts and features that match current discovery questions.
+  'solution-architect':
+    - Open platform and security concepts before integration spikes.
+  developer:
+    - Start from How the platform works and feature guides for implementation.
+  tester:
+    - Link troubleshooting pages from concepts and feature references.
+template: splash
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Cadence is a **multi-tenant** backend for **AI Apps** and agent workloads. These docs explain **how the platform behaves** for product, QA, and integration work—request flow, tenancy, security, and feature areas—with short code excerpts where they clarify behavior.
+
+<CardGrid>
+  <LinkCard
+    title="What is Cadence?"
+    href="/concepts/what-is-cadence/"
+    description="Product scope, components, and how the service fits together."
+  />
+  <LinkCard
+    title="How the platform works"
+    href="/concepts/how-it-works/"
+    description="Middleware order, lifespan startup, and router registration."
+  />
+  <LinkCard
+    title="Security and access"
+    href="/concepts/security-and-access/"
+    description="JWT, API keys, sessions, and OAuth-related endpoints."
+  />
+  <LinkCard
+    title="Multi-tenancy"
+    href="/features/multi-tenancy/"
+    description="Organizations, X-ORG-ID, membership, and quotas."
+  />
+  <LinkCard
+    title="Glossary"
+    href="/reference/glossary/"
+    description="Terms used across these docs."
+  />
+  <LinkCard
+    title="Documentation audiences"
+    href="/reference/documentation-audiences/"
+    description="How we label readers, learning outcomes, and diagrams."
+  />
+</CardGrid>

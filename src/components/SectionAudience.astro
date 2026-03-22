@@ -1,0 +1,54 @@
+---
+import type { AudienceKey } from '../lib/audiences';
+import { audienceLabels, sortAudienceKeys } from '../lib/audiences';
+
+interface Props {
+  roles: AudienceKey[];
+  note?: string;
+}
+
+const { roles, note } = Astro.props;
+const ordered = sortAudienceKeys(roles);
+---
+
+{
+  ordered.length > 0 && (
+    <aside class="section-audience" aria-label="Section audience">
+      <p class="section-audience-line">
+        <span class="section-audience-label">Primary readers:</span>{' '}
+        {ordered.map((k) => audienceLabels[k]).join(', ')}
+      </p>
+      {note && <p class="section-audience-note">{note}</p>}
+    </aside>
+  )
+}
+
+<style>
+  @layer starlight.components {
+    .section-audience {
+      margin: 0.35rem 0 0.75rem;
+      padding: 0.5rem 0.65rem;
+      border-left: 3px solid color-mix(in oklch, var(--sl-color-accent) 55%, transparent);
+      background-color: color-mix(in oklch, var(--sl-color-accent) 5%, var(--sl-color-bg));
+      border-radius: 0 0.5rem 0.5rem 0;
+    }
+
+    .section-audience-line {
+      margin: 0;
+      font-size: var(--sl-text-sm);
+      line-height: var(--sl-line-height);
+      color: var(--sl-color-gray-3);
+    }
+
+    .section-audience-label {
+      font-weight: 600;
+      color: var(--sl-color-gray-2);
+    }
+
+    .section-audience-note {
+      margin: 0.35rem 0 0;
+      font-size: var(--sl-text-sm);
+      color: var(--sl-color-gray-4);
+    }
+  }
+</style>

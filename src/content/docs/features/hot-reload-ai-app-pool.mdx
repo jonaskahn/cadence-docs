@@ -1,0 +1,141 @@
+---
+title: Hot-reload and AI App pool
+description: Pool tiers, async load/unload, and pool statistics.
+sidebar:
+  order: 11
+  badge:
+    text: Orchestrator
+    variant: note
+tableOfContents: true
+titleBadge: Orchestrator
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Understand pool tiers (hot, warm, cold) as capacity and responsiveness trade-offs.
+  'business-analyst':
+    - Describe when AI Apps load or evict for user-visible latency stories.
+  'solution-architect':
+    - Relate pool behavior to process memory, events, and optional RabbitMQ messaging.
+  developer:
+    - Follow pool load/unload APIs and orchestrator factory integration points.
+  tester:
+    - Verify tier transitions, reload paths, and stats endpoints under load.
+---
+
+import { Aside, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+
+The **AI App pool** (implemented as `OrchestratorPool`) manages running instances across three memory tiers. **Load** and
+**unload** API calls are asynchronous — they publish events that a runtime worker consumes to
+bring instances up or tear them down. The HTTP call returns `202 Accepted` after publishing;
+the instance is not ready until the worker processes the event.
+
+## How pool tiers work
+
+| Tier   | Behavior                           | When to use                                           |
+| ------ | ---------------------------------- | ----------------------------------------------------- |
+| `hot`  | Resident in memory, lowest latency | High-traffic or SLA-sensitive AI Apps                 |
+| `warm` | Can be promoted quickly            | Moderately active; balance between memory and latency |
+| `cold` | Configuration only, not resident   | Rarely used; lowest memory cost                       |
+
+Tier is set as a default at AI App creation but overridden at load time with a `tier`
+hint in the load request.
+
+<Aside type="note" title="202 does not mean loaded">
+  Load and unload return `202 Accepted` after publishing an event. The instance is not ready until
+  the worker processes that event. Poll pool stats or wait before sending chat requests.
+</Aside>
+
+## Loading and unloading instances
+
+<Steps>
+
+    1. Create the AI App with a `tier` default (often `cold` until traffic proves need).
+    2. When you need predictable latency, trigger an explicit **load** to `hot` before a demo or
+    traffic spike.
+    3. After large config or plugin changes, unload then reload to ensure clean state.
+    4. Monitor pool stats during incidents — see [Monitoring](/guides/monitoring/).
+
+</Steps>
+
+<Tabs>
+  <TabItem label="Python (server)">
+
+Load validates org access before publishing the event. The HTTP response returns after the event is published, not after the instance is ready.
+
+```python title="cadence/api/orchestrator/lifecycle.py"
+@router.post("/{instance_id}/load", status_code=status.HTTP_202_ACCEPTED)
+@audit_log("Publishing load event for instance {instance_id} (source=api_load)")
+@publish_after("load", _load_payload)
+async def load_orchestrator(
+    instance_id: str,
+    load_request: LoadOrchestratorRequest = None,
+    request: Request = None,
+    security: SecurityContext = Depends(roles_allowed(ORG_ORCHESTRATORS_LIFECYCLE)),
+):
+    settings_service: SettingsService = request.app.state.settings_service
+    instance = await settings_service.get_instance_config(instance_id)
+    validate_orchestrator_access(instance, instance_id, security.org_id)
+    tier = (load_request.tier if load_request else None) or instance.get("tier", "hot")
+    return {"message": "Load event published", "instance_id": instance_id, "tier": tier}
+```
+
+  </TabItem>
+  <TabItem label="TypeScript (UI)">
+
+The Admin pool dashboard polls stats on an interval to show current tier counts.
+
+```typescript title="ui/pages/admin/pool.vue"
+const { data: stats, refresh } = await useApiFetch<PoolStatsResponse>('/api/admin/pool/stats');
+
+onMounted(() => {
+  timer.value = setInterval(() => refresh(), POOL_STATS_REFRESH_MS);
+});
+```
+
+  </TabItem>
+</Tabs>
+
+## Pool statistics
+
+The Admin → Pool dashboard polls `GET /api/admin/pool/stats` and renders cards for total
+instances, tier counts, and shared model/bundle counts.
+
+If **hot** is near your policy limit but latency is still high, the bottleneck is likely
+external (model provider) rather than pool size — correlate with
+[Observability](/features/observability/). If users see "not loaded" errors while **hot** is
+low, workers may be failing or the message bus is stalled — check worker health and bus health.
+
+## Guarantees
+
+- Load/unload handlers validate that the instance belongs to the caller's organization before
+  publishing.
+- Chat returns `503` when an instance is not loaded in the pool. Trigger a load and wait for
+  the worker to process the event before retrying.
+
+## Troubleshooting
+
+| Symptom                                       | Cause                              | Fix                                                                |
+| --------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `503 not loaded` on chat                      | Instance not in pool               | Call load; wait for worker to process the event                    |
+| Load returns `202` but instance never appears | Worker health or message bus issue | Check worker logs and message bus connectivity                     |
+| Memory growth                                 | Too many hot instances             | Check pool stats; reduce hot tier ceiling or unload idle instances |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Monitoring"
+    href="/guides/monitoring/"
+    description="Health endpoints, pool stats, and operational troubleshooting."
+  />
+  <LinkCard
+    title="Real-time streaming"
+    href="/features/real-time-streaming/"
+    description="503 not-loaded errors appear in the streaming path — how to handle them."
+  />
+</CardGrid>

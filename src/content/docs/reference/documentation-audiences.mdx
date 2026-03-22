@@ -1,0 +1,76 @@
+---
+title: Documentation audiences and outcomes
+description: How Cadence docs label readers, learning outcomes, layered sections, and diagrams.
+sidebar:
+  order: 2
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Navigate docs using audience labels and outcomes to find executive summaries and risk framing quickly.
+  'business-analyst':
+    - Use outcome bullets and BA-oriented sections when writing requirements and acceptance criteria.
+  'solution-architect':
+    - Map architecture sections and code-referenced diagrams to integration and deployment decisions.
+  developer:
+    - Follow implementation sections and source citations when extending APIs and middleware behavior.
+  tester:
+    - Derive test ideas from verification sections and observable outcomes tied to HTTP and logs.
+---
+
+import { LinkCard } from '@astrojs/starlight/components';
+
+Cadence documentation uses a **fixed set of audience roles** and, on most pages, **learning outcomes** so you can see **who a page is for** and **what you gain** after reading. Diagrams may reference Python modules under `src/cadence/` for traceability.
+
+## Audience roles
+
+| Role                    | Typical focus                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------- |
+| **Stakeholders**        | Value, cost drivers, risk and compliance posture at a high level.                           |
+| **Business analysts**   | Actors, rules, acceptance-ready language, process boundaries.                               |
+| **Solution architects** | Integration boundaries, NFRs, security topology, dependencies (databases, cache, brokers).  |
+| **Developers**          | Modules, APIs, extension points, configuration, and code-level behavior.                    |
+| **Testers**             | Observable behavior, negative paths, environment toggles, logs and traces for verification. |
+
+## Page-level elements
+
+- **Intended audience** — Shown under the page title when set in frontmatter; roles are listed in a consistent order (stakeholder through tester).
+- **Learning outcomes by role** — Expandable block with concrete bullets; omit roles that do not apply to that page.
+- **Audience note** — Optional short pointer (for example to another guide).
+
+## Section-level elements
+
+- **Primary readers** — `SectionAudience` callouts when the main audience shifts mid-page.
+- **After this section** — `SectionOutcomes` summarizes what each listed role should take away from that section only.
+
+## Layered body structure
+
+Long guides often use recurring headings such as **Summary for stakeholders**, **Business analysis**, **Architecture and integration**, **Implementation notes**, and **Verification and quality**. Thin pages may merge adjacent blocks to avoid empty headings.
+
+## Diagrams
+
+- **Mermaid** — Editable diagrams in Markdown; best for flows that change often.
+- **Inline SVG components** (under `src/components/diagrams/`) — Static “poster” figures with captions pointing to canonical source files (for example `cadence.main`, `cadence.core.router`).
+
+## Authoring rules
+
+- Prefer **verb-led** outcome bullets (Understand, Decide, Configure, Verify, Document, Integrate).
+- Keep **2–5 bullets per role** on a page; avoid filler.
+- Quote YAML keys with hyphens, for example `'business-analyst':` and `'solution-architect':`, in frontmatter.
+
+## What good outcomes look like
+
+- **Specific** — Each bullet names an action or artifact (for example “Map `X-ORG-ID` to acceptance criteria”) rather than a vague “Understand multi-tenancy.”
+- **Checkable** — A reader can tell whether they succeeded (run a test, produce a diagram, answer an audit question).
+- **Scoped** — Omit a role when the page has nothing substantive for that audience; do not pad with generic text.
+
+<LinkCard
+  title="Glossary"
+  href="/reference/glossary/"
+  description="Terms used across Cadence docs."
+/>

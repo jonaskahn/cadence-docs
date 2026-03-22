@@ -1,0 +1,152 @@
+---
+title: Observability
+description: Structured logs, health endpoints, and OpenTelemetry configuration.
+sidebar:
+  order: 15
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Explain stdout JSON logs, health endpoints, and tracing as operational visibility investments.
+  'business-analyst':
+    - Tie observability signals to SLIs in runbooks and incident templates.
+  'solution-architect':
+    - Design OTLP export, sampling, and collector placement for production.
+  developer:
+    - Configure CADENCE_LOG_FORMAT, OTel metadata keys, and related admin APIs.
+  tester:
+    - Validate health checks, log fields, and trace spans in staging environments.
+---
+
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+import ObservabilityLayersDiagram from '@components/diagrams/ObservabilityLayersDiagram.astro';
+import SectionOutcomes from '@components/SectionOutcomes.astro';
+
+Cadence exposes three observability layers: **structured JSON logs** (stdout), **HTTP health
+and pool endpoints** for probes, and **OpenTelemetry** settings adjustable via admin APIs
+without restarting the process.
+
+## Summary for stakeholders
+
+- **Operational spend** — Logs and traces have marginal cost; aggressive tracing and high-cardinality LLM spans can raise collector and storage bills.
+- **Progressive rollout** — JSON logs and `/health` first; add OTLP with sampling before full production load.
+
+## Business analysis
+
+- **SLIs** — Pair log-based error rate with trace latency for chat paths when defining SLOs.
+- **Runbooks** — Reference `otel.*` keys and `CADENCE_LOG_FORMAT` in incident checklists.
+
+## Architecture and integration
+
+<ObservabilityLayersDiagram />
+
+<SectionOutcomes
+  outcomes={{
+    'solution-architect': [
+      'Place OTLP collectors and log pipelines in the same trust zone as the API per data classification.',
+    ],
+    developer: [
+      'Adjust otel.* keys via admin APIs and cadence.api.telemetry metadata without guessing env-only flags for traces.',
+    ],
+  }}
+/>
+
+## Observability layers
+
+| Layer              | How to enable                     | What it provides                                                    |
+| ------------------ | --------------------------------- | ------------------------------------------------------------------- |
+| Structured logs    | `CADENCE_LOG_FORMAT=json`         | Searchable JSON lines on stdout; send to ELK, Loki, CloudWatch      |
+| Health endpoints   | Always available                  | Liveness (`GET /health`) and deeper admin health                    |
+| Distributed traces | `otel.enabled=true` via admin API | Spans across internal steps; export via OTLP to Langfuse or similar |
+
+Start with **JSON logs + `/health`** in staging, then enable OTLP with a low sample rate before
+raising to production traffic. Jumping straight to `always_on` tracing on busy clusters can
+overwhelm your collector.
+
+## Structured logging
+
+Set `CADENCE_LOG_FORMAT=json` to emit structured JSON lines on stdout. Each line includes
+standard fields (timestamp, level, logger, message) plus request-specific context where
+instrumented.
+
+Stream errors are always logged regardless of format:
+
+```python title="cadence/api/chat.py"
+except Exception as e:
+    logger.error("Stream error: %s", e, exc_info=True)
+    yield 'data: {"event":"error","data":{"error":"An internal error occurred"}}\n\n'
+```
+
+## OpenTelemetry configuration
+
+OTel settings are stored as key/value metadata and adjustable through admin APIs without
+restarting the server.
+
+```python title="cadence/api/telemetry/router.py"
+_KEY_META: dict[str, tuple[str, str]] = {
+    "otel.enabled":                  ("boolean", "Enable OpenTelemetry instrumentation"),
+    "otel.service_name":             ("string",  "OTel service name reported to the collector"),
+    "otel.service_version":          ("string",  "Service version label"),
+    "otel.environment":              ("string",  "Deployment environment label (e.g. production)"),
+    "otel.exporter":                 ("string",  "Exporter: console | otlp_grpc | otlp_http | none"),
+    "otel.endpoint":                 ("string",  "OTLP collector endpoint URL"),
+    "otel.endpoint_insecure":        ("boolean", "Skip TLS verification for OTLP endpoint"),
+    "otel.headers":                  ("string",  "Comma-separated key=value auth headers for OTLP"),
+    "otel.traces_enabled":           ("boolean", "Enable distributed tracing signal"),
+    "otel.metrics_enabled":          ("boolean", "Enable metrics signal"),
+    "otel.logs_enabled":             ("boolean", "Enable structured logs signal"),
+    "otel.trace_sampler":            ("string",  "Sampler: always_on | always_off | traceid_ratio"),
+    "otel.trace_sample_rate":        ("float",   "Sampling ratio (0.0–1.0) for traceid_ratio"),
+    "otel.metrics_export_interval_ms": ("integer", "Metrics export interval in milliseconds"),
+    "otel.instrument_langchain":     ("boolean", "Auto-instrument LangChain / LangGraph pipelines"),
+    "otel.instrument_openai_agents": ("boolean", "Auto-instrument OpenAI Agents SDK"),
+    "otel.propagation":              ("string",  "Comma-separated propagator names (e.g. tracecontext,baggage)"),
+}
+```
+
+<Aside type="caution" title="Instrumentation flags increase cardinality">
+  Enable `otel.instrument_langchain` and `otel.instrument_openai_agents` selectively.
+  High-cardinality spans in production can increase collector costs significantly.
+</Aside>
+
+## Debugging a slow chat turn
+
+<Steps>
+
+    1. Note approximate time, org, orchestrator, and message id.
+    2. Search JSON logs for errors or stream warnings around that window.
+    3. If traces are enabled, open your collector and find the trace id — inspect model latency
+    vs tool latency vs queue wait.
+    4. Check pool stats (`GET /api/admin/pool/stats`) — long queue times often indicate instances
+    were demoted to cold.
+    5. If traces are missing entirely, verify `otel.enabled` and exporter settings via admin APIs.
+
+</Steps>
+
+## Troubleshooting
+
+| Symptom                | Cause                                                      | Fix                                                                   |
+| ---------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------- |
+| No traces              | `otel.enabled` is false, or exporter/network misconfigured | Set `otel.enabled=true`; check `otel.endpoint` and network egress     |
+| High cardinality costs | SDK instrumentation flags enabled in production            | Disable `otel.instrument_langchain` / `otel.instrument_openai_agents` |
+| Logs not JSON          | `CADENCE_LOG_FORMAT` not set to `json`                     | Set `CADENCE_LOG_FORMAT=json` and restart                             |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Monitoring"
+    href="/guides/monitoring/"
+    description="Health endpoints, pool stats, and log shipping setup."
+  />
+  <LinkCard
+    title="Configuration"
+    href="/guides/configuration/"
+    description="Environment variables including CADENCE_LOG_FORMAT."
+  />
+</CardGrid>

@@ -1,0 +1,128 @@
+---
+title: Monitoring
+description: Health endpoints, pool statistics, log shipping, and operational troubleshooting.
+sidebar:
+  order: 4
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Tie uptime monitoring to customer-facing SLAs and incident response.
+  'business-analyst':
+    - Define alert thresholds and escalation paths referencing health endpoints.
+  'solution-architect':
+    - Integrate probes with Kubernetes or load balancers using documented paths.
+  developer:
+    - Interpret admin health and pool statistics fields for debugging.
+  tester:
+    - Validate monitoring scripts against staging clusters.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import MonitoringProbesDiagram from '@components/diagrams/MonitoringProbesDiagram.astro';
+import SectionOutcomes from '@components/SectionOutcomes.astro';
+
+**Monitor** Cadence using **liveness** and **admin health** routes, **pool statistics** for orchestrator tiers, and **structured JSON logs**. Admin probes require the right **`cadence:system:*`** permissions.
+
+## Summary for stakeholders
+
+- **SLA visibility** — Unauthenticated **`GET /health`** supports cheap uptime checks; deeper **`/api/admin/*`** routes justify stricter access control for diagnostics.
+- **Incident triage** — Pool stats and logs together explain whether failures are provider-side, pool saturation, or auth/session issues.
+
+## Business analysis
+
+- **Runbooks** — Document which probe uses which URL and which service account holds the minimum `cadence:system:*` permission.
+- **Escalation** — Align alert names with symptoms in the troubleshooting table below.
+
+## Architecture and integration
+
+<MonitoringProbesDiagram />
+
+<SectionOutcomes
+  outcomes={{
+    'solution-architect': [
+      'Place load balancer health checks on /health and keep admin routes behind authenticated automation with least privilege.',
+    ],
+    tester: ['Automate both unauthenticated liveness and authenticated admin probes in staging.'],
+  }}
+/>
+
+## Prerequisites
+
+- **Network** access to the API from your load balancer or probes
+- **Credentials** for a user with the required system permissions (see [Role-based access control](/features/role-based-access-control/))
+
+## Health endpoints
+
+| Endpoint                    | Auth required                                           | Purpose                                       |
+| --------------------------- | ------------------------------------------------------- | --------------------------------------------- |
+| `GET /health`               | None                                                    | Basic liveness — use for load balancer probes |
+| `GET /api/admin/health`     | `cadence:system:health:read`                            | Deeper orchestrator and dependency health     |
+| `GET /api/admin/pool/stats` | `cadence:system:admin` or appropriate system permission | Tier counts and shared artifact counts        |
+
+<Aside type="note" title="Permission naming">
+  Replace legacy "system admin" wording in runbooks with the concrete `cadence:system:*` permission
+  your probe user holds. See [Role-based access control](/features/role-based-access-control/).
+</Aside>
+
+## Pool statistics
+
+The Admin → Pool dashboard polls `GET /api/admin/pool/stats` and shows total instances, counts
+by tier (hot/warm/cold), and shared model/bundle counts.
+
+**Reading pool stats during incidents:**
+
+- High **hot** count with high latency → bottleneck is likely external (model provider), not
+  the pool. Correlate with [Observability](/features/observability/).
+- Low **hot** with "not loaded" chat errors → instances are being aggressively demoted or load
+  events are failing. Check worker health and message bus connectivity.
+
+See [Hot-reload and orchestrator pool](/features/hot-reload-ai-app-pool/) for load/unload
+operations.
+
+## Log shipping
+
+Set `CADENCE_LOG_FORMAT=json` to emit structured JSON lines on stdout. Ship stdout to your
+aggregation stack (ELK, Loki, CloudWatch, etc.) using your platform's log driver.
+
+Key log fields to search during incidents: level, logger, message, and any request-specific
+context injected by middleware.
+
+## What to monitor
+
+- **Instance counts** by tier (hot/warm/cold) from pool stats.
+- **Error rates and latency** on chat and admin routes from your log aggregation.
+- **Message bus backlog** if load/unload events are stalling.
+- **503 chat errors** correlated with cold instance counts.
+
+## Verification and quality
+
+### Troubleshooting
+
+| Symptom                                                     | Cause                                             | Fix                                                                |
+| ----------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| `/health` returns non-200                                   | API process crashed or failed startup             | Check process logs and infrastructure connectivity                 |
+| `GET /api/admin/health` shows instances `is_ready: false`   | Orchestrator failed to load or lost state         | Check worker logs; reload the instance                             |
+| `401` after login                                           | Redis unavailable or session expired              | Check Redis health (`CADENCE_REDIS_URL`); re-authenticate          |
+| Load event stuck, `202` returned but instance never appears | Worker not consuming events; message bus stalled  | Check worker health and RabbitMQ connectivity                      |
+| High hot count but latency still high                       | Bottleneck is external (model provider), not pool | Correlate with traces in [Observability](/features/observability/) |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Observability"
+    href="/features/observability/"
+    description="OpenTelemetry tracing, structured logs, and debugging slow chat turns."
+  />
+  <LinkCard
+    title="Hot-reload and orchestrator pool"
+    href="/features/hot-reload-ai-app-pool/"
+    description="Pool tiers, load/unload operations, and 202 async semantics."
+  />
+</CardGrid>

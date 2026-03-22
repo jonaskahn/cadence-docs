@@ -1,0 +1,114 @@
+---
+title: Central Points
+description: Stable aliases that resolve to orchestrator instances for chat — creation, visibility, and resolution.
+sidebar:
+  order: 14
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Explain stable aliases as product-facing routing names independent of internal IDs.
+  'business-analyst':
+    - Document creation, visibility, and resolution rules for central points.
+  'solution-architect':
+    - Place central points in DNS or API gateway patterns for clients.
+  developer:
+    - Implement alias CRUD and resolution logic against documented APIs.
+  tester:
+    - Verify resolution order, visibility flags, and negative cases.
+---
+
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+
+Every orchestrator instance has a UUID that changes when you recreate it. A **central point** solves this by giving a stable, human-readable alias to an orchestrator — clients send `X-CENTRAL-ID` in requests instead of `X-INSTANCE-ID`, and the server resolves the backing instance at request time. Swapping the underlying orchestrator (for a blue/green deploy or a configuration update) requires changing one database row, not every client integration.
+
+## Why use central points
+
+Without central points, every client integration must track which running instance id currently serves a product feature. Instance ids change when you recreate orchestrators or scale deployments. Any mobile app, browser client, or partner API that hardcodes an instance id breaks on the next swap.
+
+A central point decouples the public-facing identifier from the internal instance id. Product teams publish one stable id (for example `X-CENTRAL-ID: public-support`) to clients; operators change the backing orchestrator in the database whenever needed, with no client-side releases required.
+
+**Blue/green deployments** use this directly: create the new orchestrator, load it into the pool, update the central point to reference the new id, confirm the cut-over, then unload the old instance.
+
+## Creating and targeting a central point
+
+<Steps>
+
+1. Create the orchestrator instance and load it into the pool.
+2. Create a central point with `POST /api/orgs/{org_id}/central-points`, specifying the `orchestrator_id` and `visibility`.
+3. Clients replace `X-INSTANCE-ID` with `X-CENTRAL-ID` (using the central point's `id`) in chat completion requests, keeping `X-ORG-ID` unchanged.
+4. To swap the backing orchestrator, update the central point's `orchestrator_id`. Load the new instance first; the old one continues serving until the update commits.
+
+</Steps>
+
+## Visibility: private vs. public
+
+Every central point has a `visibility` field that controls who may send chat through it.
+
+A **private** central point requires the caller to have an authenticated session with `cadence:chat:use` for the organization. This is the default for internal product features.
+
+A **public** central point accepts requests without a named user session. The server assigns an `ANONYMOUS_USER_ID` for downstream processing instead of reading `user_id` from a session. Use public central points for unauthenticated endpoints such as embedded chat widgets — but apply rate limiting and abuse monitoring at your infrastructure layer before exposing them externally.
+
+Org isolation is always enforced regardless of visibility: the central point's `org_id` must match the `X-ORG-ID` header, or the request fails with `400`.
+
+```python title="cadence/api/tenant/central_point.py"
+if str(resolved.org_id) != org_id:
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Central point does not belong to the specified organization",
+    )
+
+if resolved.visibility == "private":
+    session = require_session(request)
+    oid = str(resolved.org_id)
+    if not session.has_permission(CHAT_USE, oid):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing permission to use chat for this organization",
+        )
+    user_id = session.user_id
+else:
+    user_id = ANONYMOUS_USER_ID
+```
+
+## Central point fields
+
+| Field             | Type                  | Notes                                           |
+| ----------------- | --------------------- | ----------------------------------------------- |
+| `id`              | UUID                  | Stable identifier sent as `X-CENTRAL-ID`        |
+| `org_id`          | UUID                  | Organization this central point belongs to      |
+| `orchestrator_id` | UUID                  | Backing orchestrator instance — update to swap  |
+| `name`            | string                | Human-readable display name                     |
+| `description`     | string                | Optional description                            |
+| `visibility`      | `private` \| `public` | Controls authentication requirement (see above) |
+| `status`          | string                | Operational status of the central point         |
+| `created_at`      | ISO 8601              | Creation timestamp                              |
+| `updated_at`      | ISO 8601              | Last modification timestamp                     |
+
+## Troubleshooting
+
+| Symptom                        | Cause                                                               | Fix                                                             |
+| ------------------------------ | ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `400` org mismatch             | Central point belongs to a different org than the `X-ORG-ID` header | Verify the org alignment between client and central point       |
+| `403` on private central point | Caller lacks `cadence:chat:use` for the org                         | Check role assignment in that org                               |
+| Instance errors after swap     | New orchestrator not loaded in pool                                 | Load the new instance before updating the central point mapping |
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Real-time streaming"
+    href="/features/real-time-streaming/"
+    description="Use X-CENTRAL-ID in chat completion requests."
+  />
+  <LinkCard
+    title="Multi-tenancy"
+    href="/features/multi-tenancy/"
+    description="How X-ORG-ID and org context interact with central point resolution."
+  />
+</CardGrid>

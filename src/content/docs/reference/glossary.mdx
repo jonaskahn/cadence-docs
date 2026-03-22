@@ -1,0 +1,94 @@
+---
+title: Glossary
+description: Terms used across Cadence docs and the codebase.
+sidebar:
+  order: 1
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Look up terms quickly when reviewing decks or contracts referencing Cadence.
+  'business-analyst':
+    - Align vocabulary across requirements and support documentation.
+  'solution-architect':
+    - Disambiguate integration jargon when comparing to other platforms.
+  developer:
+    - Navigate to deep dives from glossary entries.
+  tester:
+    - Build a shared lexicon for test case titles and defects.
+---
+
+Alphabetical reference for jargon used in this documentation. For behavior detail, follow the links to [Concepts](/concepts/what-is-cadence/) and [Features](/features/).
+
+## A
+
+### AI App
+
+One configured agent runtime for an org: framework, mode, plugins, and pool tier—identified by **`instance_id`**. In API paths and older code this is still named **orchestrator** (for example `GET /api/orgs/{org_id}/orchestrators/{instance_id}`). See [AI Apps](/features/ai-apps/).
+
+### AI agent
+
+User-facing name for a **plugin** ZIP attached to an AI App: uploaded to an org or system catalog, referenced via `active_plugin_ids`, and loaded into the pool at runtime. The implementation artifact is still a **plugin** in APIs and code (`/api/.../plugins`, `BasePlugin`). See [AI Agent system](/features/plugin-system/).
+
+### API key (`cdk_`)
+
+Long-lived automation secret stored **hashed** in PostgreSQL. Callers send it in **`X-API-KEY`**; effective access follows the key’s **scopes** and the owning user’s **org memberships**. See [API keys](/guides/api-keys/).
+
+## C
+
+### Central point
+
+Platform abstraction for a stable routing entry (alias) to an AI App configuration, with optional public visibility—see [Central Points](/features/central-points/).
+
+## H
+
+### Hot, warm, and cold (pool tier)
+
+Controls how eagerly an [AI App](/features/ai-apps/) stays in the process pool—loaded at startup, on demand, or lazily. See [Hot-reload and AI App pool](/features/hot-reload-ai-app-pool/).
+
+## J
+
+### JWT and `jti`
+
+Access tokens for interactive users are **JWTs**. The claim **`jti`** (JWT ID) is the Redis key used to load the live session; revoking Redis invalidates the token even if the JWT string still verifies. See [JWT sessions](/features/jwt-sessions/).
+
+## O
+
+### Org (tenant)
+
+An **organization**—the unit of isolation. Data and AI Apps are scoped by **`org_id`**. See [Multi-tenancy](/features/multi-tenancy/).
+
+## P
+
+### Plugin
+
+Technical name for the ZIP package format: a `BasePlugin` subclass that supplies tools to the agent graph. In product documentation this is often called an **AI agent**; REST paths and code still use **plugin** (for example `/api/orgs/{org_id}/plugins`). See [AI Agent system](/features/plugin-system/) and [AI Agent SDK](/features/plugin-sdk/).
+
+## R
+
+### RBAC
+
+Role-based access control: roles carry **permission strings** (`cadence:…`) evaluated per org. See [Role-based access control](/features/role-based-access-control/).
+
+## S
+
+### `sys_admin`
+
+Platform superuser flag on the session; bypasses normal org checks where implemented. See [Security and access](/concepts/security-and-access/).
+
+## T
+
+### TokenSession
+
+Redis-backed view of the caller (interactive or API key): user id, permissions, org memberships, and related fields. See [JWT sessions](/features/jwt-sessions/) and [Security and access](/concepts/security-and-access/).
+
+## X
+
+### `X-ORG-ID`
+
+HTTP header selecting which **organization** a request targets when the path does not embed `{org_id}`. See [Multi-tenancy](/features/multi-tenancy/).

@@ -1,0 +1,83 @@
+---
+import type { AudienceKey } from '../lib/audiences';
+import { audienceLabels, sortAudienceKeys } from '../lib/audiences';
+
+interface Props {
+  outcomes: Partial<Record<AudienceKey, string[]>>;
+}
+
+const { outcomes } = Astro.props;
+const keys = sortAudienceKeys(
+  (Object.keys(outcomes) as AudienceKey[]).filter((k) => outcomes[k]?.length)
+);
+---
+
+{
+  keys.length > 0 && (
+    <aside class="section-outcomes" aria-label="Section learning outcomes">
+      <p class="section-outcomes-title">After this section</p>
+      <div class="section-outcomes-grid">
+        {keys.map((key) => (
+          <section class="section-outcomes-role">
+            <p class="section-outcomes-heading">{audienceLabels[key]}</p>
+            <ul class="section-outcomes-list">
+              {outcomes[key]!.map((line) => (
+                <li>{line}</li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </aside>
+  )
+}
+
+<style>
+  @layer starlight.components {
+    .section-outcomes {
+      margin: 0.35rem 0 1rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--sl-color-hairline-light);
+      border-radius: 0.5rem;
+      background-color: color-mix(in oklch, var(--sl-color-bg) 92%, var(--sl-color-accent));
+    }
+
+    .section-outcomes-title {
+      margin: 0 0 0.5rem;
+      font-size: var(--sl-text-xs);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--sl-color-gray-4);
+    }
+
+    .section-outcomes-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .section-outcomes-role {
+      margin: 0;
+    }
+
+    .section-outcomes-heading {
+      margin: 0 0 0.25rem;
+      font-size: var(--sl-text-sm);
+      font-weight: 600;
+      color: var(--sl-color-gray-2);
+    }
+
+    .section-outcomes-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      font-size: var(--sl-text-sm);
+      line-height: var(--sl-line-height);
+      color: var(--sl-color-gray-3);
+    }
+
+    .section-outcomes-list li {
+      margin-bottom: 0.2rem;
+    }
+  }
+</style>

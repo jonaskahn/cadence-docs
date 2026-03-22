@@ -1,0 +1,176 @@
+---
+title: Role-based access control
+description: cadence:* permissions, BuiltInRBACProvider, Redis cache, and route dependencies.
+sidebar:
+  order: 2
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Relate roles and permissions to auditability and separation of duties for platform versus org admins.
+  'business-analyst':
+    - Map personas to roles and expected 403 outcomes when permissions are missing.
+  'solution-architect':
+    - Explain Postgres plus Redis caching for RBAC and implications for stale permission windows.
+  developer:
+    - Use permission constants, BuiltInRBACProvider, and route dependencies (roles_allowed) consistently.
+  tester:
+    - Build matrices of roles versus endpoints using cadence:* strings and wildcard behavior.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import SectionOutcomes from '@components/SectionOutcomes.astro';
+
+Every protected route in Cadence answers one question: does the caller hold the required permission string? Permissions are attached to roles, roles are assigned to users, and the combined effective permission set is cached in Redis for 300 seconds. When a permission check fails, the route returns **403**.
+
+## Summary for stakeholders
+
+- **Explicit permissions** — Every capability in Cadence is guarded by a `cadence:*` string. Granting a role grants its full permission set. Revoking a role revokes those capabilities when the cache expires or is invalidated.
+- **Three built-in roles** — `sys_admin` (platform superuser), `org_admin` (full control over one org), and `org_member` (read and chat in one org) cover most use cases. Custom roles can be created via the admin API.
+
+## Business analysis
+
+Map product personas to roles and their expected 403 outcomes when writing acceptance criteria. A user with `org_member` role cannot read org settings — that requires `cadence:org:settings:read`, which is only in `org_admin` and above. When a defect says "user got 403 but shouldn't", the cause is almost always a missing role assignment or a stale permission cache.
+
+- **Personas** — Map product roles (org member, org admin, sys admin) to `cadence:*` sets when writing **403** scenarios.
+- **Cache staleness** — Permission changes take up to 5 minutes to propagate unless `invalidate_cache` is explicitly called on the role-change code path.
+
+<SectionOutcomes
+  outcomes={{
+    'solution-architect': [
+      'Reason about cache staleness (≤5 minutes) and session snapshots when designing admin tooling and support workflows.',
+    ],
+  }}
+/>
+
+## Permission strings
+
+All constants live in `cadence.core.authorization.permissions`. Every permission follows the pattern `cadence:{namespace}:{resource}:{action}`.
+
+**System-scoped** (`cadence:system:*`) — platform-wide operations:
+
+| Constant                               | String                                    |
+| -------------------------------------- | ----------------------------------------- |
+| `SYSTEM_ADMIN`                         | `cadence:system:admin`                    |
+| `SYSTEM_SETTINGS_READ` / `_WRITE`      | `cadence:system:settings:read/write`      |
+| `SYSTEM_TIERS_READ` / `_WRITE`         | `cadence:system:tiers:read/write`         |
+| `SYSTEM_PLUGINS_READ` / `_WRITE`       | `cadence:system:plugins:read/write`       |
+| `SYSTEM_USERS_READ` / `_WRITE`         | `cadence:system:users:read/write`         |
+| `SYSTEM_PROVIDERS_READ` / `_WRITE`     | `cadence:system:providers:read/write`     |
+| `SYSTEM_TELEMETRY_READ` / `_WRITE`     | `cadence:system:telemetry:read/write`     |
+| `SYSTEM_HEALTH_READ`                   | `cadence:system:health:read`              |
+| `SYSTEM_ORGS_CREATE`                   | `cadence:system:orgs:create`              |
+| `SYSTEM_OAUTH_CLIENTS_READ` / `_WRITE` | `cadence:system:oauth_clients:read/write` |
+| `SYSTEM_ROLES_READ` / `_WRITE`         | `cadence:system:roles:read/write`         |
+| `SYSTEM_API_KEYS_READ` / `_WRITE`      | `cadence:system:api_keys:read/write`      |
+
+**Org-scoped** (`cadence:org:*`) — operations on a specific org:
+
+| Constant                             | String                                  |
+| ------------------------------------ | --------------------------------------- |
+| `ORG_READ` / `_WRITE`                | `cadence:org:read/write`                |
+| `ORG_MEMBERS_READ` / `_WRITE`        | `cadence:org:members:read/write`        |
+| `ORG_ORCHESTRATORS_READ` / `_WRITE`  | `cadence:org:orchestrators:read/write`  |
+| `ORG_ORCHESTRATORS_LIFECYCLE`        | `cadence:org:orchestrators:lifecycle`   |
+| `ORG_PLUGINS_READ` / `_WRITE`        | `cadence:org:plugins:read/write`        |
+| `ORG_LLM_CONFIGS_READ` / `_WRITE`    | `cadence:org:llm-configs:read/write`    |
+| `ORG_CENTRAL_POINTS_READ` / `_WRITE` | `cadence:org:central-points:read/write` |
+| `ORG_SETTINGS_READ` / `_WRITE`       | `cadence:org:settings:read/write`       |
+| `ORG_STATS_READ`                     | `cadence:org:stats:read`                |
+
+**User and chat** (`cadence:chat:*`, `cadence:profile:*`):
+
+| Constant                  | String                       |
+| ------------------------- | ---------------------------- |
+| `CHAT_USE`                | `cadence:chat:use`           |
+| `CHAT_HISTORY_READ`       | `cadence:chat:history:read`  |
+| `PROFILE_READ` / `_WRITE` | `cadence:profile:read/write` |
+
+## Built-in roles
+
+Three roles are seeded at platform initialization via `role_permissions_map()`:
+
+| Role         | Permissions                                                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `sys_admin`  | `SYSTEM_ADMIN` + all system + all org + all user permissions                                                                        |
+| `org_admin`  | All org permissions + all user permissions                                                                                          |
+| `org_member` | `cadence:org:read`, `cadence:org:orchestrators:read`, `cadence:chat:use`, `cadence:chat:history:read`, `cadence:profile:read/write` |
+
+`SYSTEM_ADMIN` (`cadence:system:admin`) is a special sentinel: when it appears in a user's effective permissions, `expand_wildcard_permissions` replaces the entire set with every permission in the platform. This is how `sys_admin` bypasses all checks — not through a special flag, but through permission expansion.
+
+## BuiltInRBACProvider
+
+`BuiltInRBACProvider` in `cadence.core.authorization.builtin_rbac` loads and caches permissions:
+
+1. **Load** — `effective_permissions(user_id, org_id)` first checks Redis. On a cache miss, it calls `UserRoleRepository.list_for_user` to get all role assignments, then `RoleRepository.list_permissions_for_role` for each role. Global assignments (`org_id is None`) contribute to the global set; org-scoped assignments only contribute when `org_id` matches.
+
+2. **Merge** — Global and org-scoped permission sets are unioned, then passed through `expand_wildcard_permissions`. If `SYSTEM_ADMIN` is present, the result is the full `PERMISSIONS` frozenset.
+
+3. **Cache** — The merged set is written to Redis under `authz:perms:{user_id}:{org_id or '_'}` with a TTL of **300 seconds** (5 minutes). The `_` placeholder is used when no org is in scope.
+
+4. **Invalidate** — `invalidate_cache(user_id)` scans and deletes all `authz:perms:{user_id}:*` keys. It is called automatically after `assign_role` and `remove_role`.
+
+## Route enforcement
+
+Route handlers declare permission requirements as FastAPI dependencies:
+
+- `Depends(roles_allowed(PERM))` — The caller must hold the named permission (checked via `session.has_permission`). No matching permission → **403**.
+- `Depends(authenticated)` — The caller must have a valid session, but no permission is checked.
+- `require_platform_sys_admin` / `require_admin` — Narrow guards for platform-level operations.
+
+Most org-scoped handlers also call `org_context(security, org_id)` to verify org membership, in addition to the permission check.
+
+## API keys vs interactive sessions
+
+When an API key is used, `sanitize_api_key_flat_scopes` strips three permissions before building the session:
+
+- `cadence:system:admin`
+- `cadence:system:api_keys:read`
+- `cadence:system:api_keys:write`
+
+This means no API key can ever act as a platform superuser or manage other API keys, regardless of what scopes were granted to it.
+
+<Aside type="tip" title="Adding a new permission">
+  Add a constant in `permissions.py`, assign it to a role via the admin API or DB migration, and
+  gate the new route with `roles_allowed(YOUR_CONSTANT)` or `session.has_permission(YOUR_CONSTANT,
+  org_id)`.
+</Aside>
+
+## Verification and quality
+
+**Cache staleness** — After a role change in the database, `BuiltInRBACProvider.invalidate_cache` must be called for the change to take effect immediately. Without invalidation, the old permission set lives in Redis for up to 5 minutes. Design role-change tests to account for this: change the role, call the cache invalidation path, then assert the permission boundary.
+
+**Session snapshot** — Interactive JWT sessions store permissions in Redis at login time (`BearerTokenSession.global_permissions` and `org_permissions`). A role change does not update those session fields until the user refreshes or re-authenticates. Test permission changes with freshly issued tokens.
+
+<SectionOutcomes
+  outcomes={{
+    tester: [
+      'Design time-delayed tests: change role in DB, wait for cache TTL or trigger invalidation, assert 403/200 boundaries.',
+    ],
+  }}
+/>
+
+## Related pages
+
+<CardGrid>
+  <LinkCard
+    title="Security and access"
+    href="/concepts/security-and-access/"
+    description="Authentication flow and session resolution."
+  />
+  <LinkCard
+    title="Multi-tenancy"
+    href="/features/multi-tenancy/"
+    description="Org scope and org_context."
+  />
+  <LinkCard
+    title="API keys"
+    href="/guides/api-keys/"
+    description="Flat scopes and stripped permissions."
+  />
+</CardGrid>

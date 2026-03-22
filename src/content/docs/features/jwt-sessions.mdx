@@ -1,0 +1,156 @@
+---
+title: JWT sessions and Redis
+description: BearerTokenSession shape, Redis keys, access/refresh lifecycle, logout and refresh.
+sidebar:
+  order: 3
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Explain why JWTs alone are insufficient for revocation and why Redis outages affect interactive auth.
+  'business-analyst':
+    - Document session invalidation scenarios (logout, password change) for user-facing acceptance criteria.
+  'solution-architect':
+    - Map Redis key layout and TTL strategy to HA Redis and backup policies.
+  developer:
+    - Trace BearerTokenSession, SessionStoreRepository, and AuthService for access and refresh flows.
+  tester:
+    - Predict 401 when Redis rows are deleted while JWTs still verify cryptographically.
+---
+
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+
+A JWT alone is not enough to access Cadence. After a successful login, the server issues a short-lived JWT but also writes the authoritative session — permissions, org memberships, metadata — to Redis, keyed by the JWT's `jti` claim. Every subsequent request looks up that Redis row. When it is gone, the request returns **401**, even if the JWT signature is still cryptographically valid. This is what makes logout instant.
+
+## Summary for stakeholders
+
+- **Revocation is immediate.** Calling logout deletes the `session:{jti}` row. All subsequent requests using that JWT are rejected before the token itself expires.
+- **Redis availability matters.** Interactive sessions live in Redis. If Redis is unavailable, all authenticated requests fail with 401 until Redis recovers and users re-authenticate.
+
+## Why not just use JWTs?
+
+Standard stateless JWTs cannot be revoked without waiting for them to expire. Cadence trades some statelessness for the ability to invalidate sessions instantly — on logout, on admin action, or during a security incident. The JWT becomes a lookup key, not the session itself.
+
+## Redis key layout
+
+`SessionStoreRepository` manages these keys:
+
+| Key pattern                       | Type          | Content                                          | TTL                                        |
+| --------------------------------- | ------------- | ------------------------------------------------ | ------------------------------------------ |
+| `session:{jti}`                   | String (JSON) | `BearerTokenSession` payload                     | Access token TTL (default 1800 s)          |
+| `user_sessions:{user_id}`         | Set           | Active access `jti` values for bulk-invalidation | No TTL — entries removed on session delete |
+| `refresh:{refresh_jti}`           | String (JSON) | `RefreshTokenData` payload                       | Refresh token TTL (default 604800 s)       |
+| `user_refresh_sessions:{user_id}` | Set           | Active refresh `jti` values                      | No TTL — entries removed on rotation       |
+| `oauth_state:{state}`             | String (JSON) | Provider + PKCE code verifier for social login   | Short-lived handoff TTL                    |
+| `oauth2_code:{code}`              | String (JSON) | One-time authorization code payload              | 300 s — consumed on exchange               |
+
+Token TTLs are read from `global_settings` at runtime (`access_token_ttl_seconds`, `refresh_token_ttl_seconds`) and bootstrapped to 1800 s and 604800 s on first startup if missing.
+
+**`RefreshTokenData` fields** (stored in `refresh:{refresh_jti}`):
+
+| Field                       | Type          | Purpose                                                  |
+| --------------------------- | ------------- | -------------------------------------------------------- |
+| `refresh_jti`               | `str`         | Unique refresh token ID                                  |
+| `user_id`                   | `str`         | Token owner                                              |
+| `access_jti`                | `str`         | The access `jti` this refresh token was issued alongside |
+| `client_id`                 | `str \| None` | OAuth2 client that issued the token                      |
+| `created_at` / `expires_at` | `str`         | ISO timestamps                                           |
+
+## The JWT itself
+
+`AuthService._build_jwt` creates a JWT with these claims:
+
+| Claim | Value                            |
+| ----- | -------------------------------- |
+| `sub` | `user_id`                        |
+| `jti` | UUID7, unique per session        |
+| `iat` | Issued-at timestamp              |
+| `exp` | `iat + access_token_ttl_seconds` |
+
+The `jti` claim is the only thing `TenantContextMiddleware` reads from the JWT. It uses that value to call `session_store.get_session(jti)` in Redis. Everything else (permissions, org IDs) comes from Redis, not the token.
+
+## Request path
+
+<Steps>
+
+    1. **`AuthenticationMiddleware`** validates the JWT signature with `JWTAuth.validate` (HMAC HS256, optional RS256 fallback). An invalid signature raises `InvalidTokenError` → **401** before Redis is touched.
+
+    2. **`TenantContextMiddleware`** decodes the `jti` from the JWT with the app secret, then calls `session_store.get_session(jti)`. If Redis returns nothing, `request.state.session` stays `None`.
+
+    3. On any route that calls `require_session(request)`, a `None` session raises `AuthenticationError` → **401**.
+
+</Steps>
+
+## Issuing a session
+
+When a user authenticates (password grant, authorization code, etc.), `AuthService` calls `SessionStoreRepository.create_session`:
+
+1. Generates a new `jti` (UUID7).
+2. Resolves current permissions and org memberships via `_session_auth_fields(user_id)`.
+3. Builds a `BearerTokenSession` with all fields populated.
+4. Writes it to Redis: `SETEX session:{jti} {ttl} {json}`.
+5. Adds `jti` to the `user_sessions:{user_id}` set.
+6. Calls `_build_jwt` to produce the JWT string returned to the caller.
+7. Optionally creates a refresh token row (`create_refresh_token`).
+
+## Refresh flow
+
+When the client sends a `refresh_token` grant to `POST /oauth2/token`:
+
+1. `SessionStoreRepository.get_refresh_token(refresh_jti)` — missing or expired → **401**.
+2. `_session_auth_fields(user_id)` recomputes permissions from the current database state.
+3. `create_session` issues a new access `jti` and writes the new session to Redis.
+4. `rotate_refresh_token` deletes the old refresh row and creates a new one linked to the new access `jti`.
+5. `delete_session(old_access_jti)` removes the previous access session so the old JWT stops working immediately.
+
+The key property: the old access token and refresh token are both invalidated atomically at rotation time.
+
+## Logout
+
+`DELETE /api/auth/logout`:
+
+- Reads `request.state.token_jti` (set by `TenantContextMiddleware` when the session was loaded).
+- Calls `AuthService.logout(jti, refresh_jti=...)`.
+- `delete_session(jti)` — removes `session:{jti}` from Redis and removes `jti` from the `user_sessions:{user_id}` set.
+- If the `X-Refresh-Token` header is present, also calls `delete_refresh_token(refresh_jti)`.
+
+After this, any request using the same JWT returns **401**. The JWT may still pass signature validation, but the Redis row is gone.
+
+**Force-logout all sessions** — `delete_all_user_sessions(user_id)` deletes every access and refresh session for a user at once. Used for password resets and security responses.
+
+## Limitations
+
+- **Permissions are a snapshot.** `global_permissions` and `org_permissions` in the session reflect the database state at login or last refresh. Role changes do not propagate until the user refreshes their token.
+- **Redis unavailable → 401 for everyone.** Without Redis, `get_session` returns `None` for all requests. There is no fallback; plan for Redis HA accordingly.
+- **API keys use a different path.** API key sessions are built in memory from the database on each request — no `session:{jti}` row exists. See [API keys](/guides/api-keys/).
+
+<Aside type="note" title="OAuth grants and browser flows">
+  The OAuth2 grant dispatch (password, authorization code, refresh token) and browser redirect flows
+  are documented in [OAuth2 and BFF](/integrations/oauth-bff/). This page focuses on what is stored
+  in Redis and how the session lifecycle works.
+</Aside>
+
+## Related pages
+
+<CardGrid>
+  <LinkCard
+    title="Security and access"
+    href="/concepts/security-and-access/"
+    description="JWT vs API key and middleware overview."
+  />
+  <LinkCard
+    title="API keys"
+    href="/guides/api-keys/"
+    description="Automation credentials without Redis session rows."
+  />
+  <LinkCard
+    title="Role-based access control"
+    href="/features/role-based-access-control/"
+    description="How permissions are stored and checked."
+  />
+</CardGrid>

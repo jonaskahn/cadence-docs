@@ -1,0 +1,95 @@
+---
+title: AI Apps
+description: CRUD, lifecycle load/unload, pool tiers, and domain validation.
+sidebar:
+  order: 7
+  badge:
+    text: Orchestrator
+    variant: note
+tableOfContents: true
+titleBadge: Orchestrator
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Explain AI Apps as billable or capacity-consuming units per org.
+  'business-analyst':
+    - Define CRUD stories for create, update, delete, and tier selection.
+  'solution-architect':
+    - Connect instance records to pool tiers and external orchestration backends.
+  developer:
+    - Use orchestrator APIs and validation rules from cadence.api.orchestrator.
+  tester:
+    - Cover domain validation errors, quota limits, and concurrent updates.
+---
+
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+
+An **AI App** (historically called an **orchestrator instance** in the API) is one configured AI runtime for an org. It declares the framework (`langgraph` or `openai_agents`), the mode (`supervisor` or `grounded`), which plugins are active, and how eagerly it should stay resident in memory (pool tier). The record lives in PostgreSQL; the running runtime lives in `OrchestratorPool`. HTTP routes are under `/api/orgs/{org_id}/orchestrators`.
+
+## How instances are created and used
+
+Creating an instance writes a configuration record but does not start a runtime. The pool only holds the instance in memory after an explicit **load** call, which publishes an async event that a worker processes. Once loaded, the instance handles chat requests; when unloaded it returns `503` to callers.
+
+`SettingsService.validate_orchestrator_config` runs before any record is written. It checks that the requested framework and mode are a valid combination, that the LLM configuration resolves correctly for this org, and that all referenced plugins exist in the org's catalog. A failed validation returns `422` before anything is persisted.
+
+## Typical flow
+
+<Steps>
+
+    1. **Create** — `POST /api/orgs/{org_id}/orchestrators` with `roles_allowed(ORG_ORCHESTRATORS_WRITE)`. `org_context` enforces membership. `SettingsService.validate_orchestrator_config` checks framework, mode, config, and plugin references.
+    2. **Persist** — `OrchestratorService` and its repositories write the instance record; `publish_after` optionally emits a creation event to the message bus.
+    3. **Load** — Call `POST /api/orgs/{org_id}/orchestrators/{instance_id}/load`. The handler validates org ownership and publishes a load event. The worker calls `OrchestratorPool.create_instance` and the instance becomes available for chat. The HTTP response returns `202 Accepted` before the worker finishes — see [Hot-reload and AI App pool](/features/hot-reload-ai-app-pool/).
+    4. **Chat** — Clients call `POST /api/chat/completion` with `X-ORG-ID` and `X-INSTANCE-ID`. See [Chat and engine](/features/chat-and-engine/).
+
+</Steps>
+
+## Permissions
+
+Routes use `roles_allowed` with these permission constants:
+
+| Operation                      | Permission                            |
+| ------------------------------ | ------------------------------------- |
+| Read instance list and details | `cadence:org:orchestrators:read`      |
+| Create, update, delete         | `cadence:org:orchestrators:write`     |
+| Load, unload, reload           | `cadence:org:orchestrators:lifecycle` |
+
+## Startup preloading
+
+During application startup, `load_hot_tier_instances` runs after plugin catalog sync. It loads all active AI Apps whose tier is `hot` so they are ready before the first chat request arrives. Instances on `warm` or `cold` tier are not preloaded — they require an explicit load call.
+
+## Limitations
+
+- **Pool capacity** — Large numbers of `hot` instances increase memory and startup time. Use `warm` or `cold` tier for low-traffic AI Apps and promote to `hot` before expected load spikes.
+- **Async load** — `202 Accepted` means the event was published, not that the instance is ready. Poll pool stats or wait before sending chat requests.
+- **RabbitMQ optional** — If the message bus is unavailable, `event_publisher` may be `None`. Load and unload handlers tolerate this and write the record without broadcasting.
+
+<Aside type="note" title="Plugin and LLM resolution">
+  Plugin ZIPs (AI agents) and settings are managed via the [AI Agents
+  catalog](/features/plugins-catalog/). LLM resolution uses org LLM configs from [LLM
+  configuration](/features/llm-configuration/).
+</Aside>
+
+## Next steps
+
+<CardGrid>
+  <LinkCard
+    title="Chat and engine"
+    href="/features/chat-and-engine/"
+    description="Completion routes and required headers."
+  />
+  <LinkCard
+    title="Hot-reload and pool"
+    href="/features/hot-reload-ai-app-pool/"
+    description="Tiers, load/unload, and 202 async semantics."
+  />
+  <LinkCard
+    title="Orchestration modes"
+    href="/features/orchestration-modes/"
+    description="Supervisor vs grounded and mode_config fields."
+  />
+</CardGrid>
