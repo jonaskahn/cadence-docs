@@ -39,7 +39,7 @@ plugin-defined tools.
 
 ```mermaid
 flowchart TD
-    UP[POST /upload — multipart ZIP] --> VAL[read_validated_plugin_file<br>magic bytes PK\x03\x04 + .zip extension + ≤50 MB]
+    UP[POST /upload — multipart ZIP] --> VAL[read_validated_plugin_file<br>magic bytes PK\x03\x04 + .zip extension + ≤5 MB]
     VAL --> SVC[plugin_service.upload_*_plugin]
     SVC --> DISC[Discover BasePlugin subclass<br>in plugin.py]
     DISC --> DB[(Store row: pid, version, name,<br>description, capabilities, settings_schema)]
@@ -130,7 +130,7 @@ Each entry in `settings_schema` has this shape:
 <Steps>
 
 1. The client posts `multipart/form-data` with a `file` field to the upload endpoint.
-2. `read_validated_plugin_file` validates the file: extension must be `.zip`, first 4 bytes must be `PK\x03\x04` (ZIP magic bytes), and size must not exceed 50 MB.
+2. `read_validated_plugin_file` validates the file: extension must be `.zip`, first 4 bytes must be `PK\x03\x04` (ZIP magic bytes), and size must not exceed 5 MB.
 3. `plugin_service.upload_*_plugin` extracts the ZIP to the filesystem and runs the discovery process — it imports `plugin.py` from the archive and scans for a `BasePlugin` subclass.
 4. The discovered class's `get_metadata()` and `get_settings_schema()` are called to extract `pid`, `version`, `name`, `description`, `capabilities`, and the settings schema.
 5. A row is written to the plugin catalog. The response returns `id`, `pid`, `version`, and `org_id`.
@@ -221,7 +221,7 @@ Additional Python files, data files, and sub-packages are allowed. The discovery
 
 | Symptom                                             | Cause                                                       | Fix                                                                   |
 | --------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------- |
-| `400 Invalid plugin file`                           | Wrong file extension, bad magic bytes, or file > 50 MB      | Use `.zip` file under 50 MB; re-zip if file is corrupted              |
+| `400 Invalid plugin file`                           | Wrong file extension, bad magic bytes, or file > 5 MB       | Use `.zip` file under 5 MB; re-zip if file is corrupted               |
 | Upload succeeds but no tools in chat                | Plugin not in `active_plugin_ids`, or instance not reloaded | Verify `active_plugin_ids`; reload instance via pool API              |
 | `404` on settings-schema                            | Plugin pid not in registry for this org                     | Verify the plugin is uploaded and `enabled=true`                      |
 | Tools appear but fail at runtime                    | `required` settings not filled in                           | Check `plugin_settings` on the orchestrator; fill all required fields |

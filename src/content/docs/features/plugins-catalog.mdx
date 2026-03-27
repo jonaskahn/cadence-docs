@@ -41,7 +41,7 @@ The catalog has two layers. **System plugins** are uploaded by `sys_admin` and a
 
 ## Data storage
 
-Catalog rows live in PostgreSQL, managed by `SystemPluginRepository` (system catalog) and `OrganizationPluginRepository` (org catalog). Plugin ZIP artifacts are stored in the `PluginStoreRepository` — a two-layer store that writes to local filesystem and optionally syncs to S3/MinIO. If S3 credentials are absent, the store falls back to local-only and logs a warning; the catalog continues to function.
+Catalog rows live in PostgreSQL in a single `plugins` table (`source` = `system` or `org`), managed by `SystemPluginRepository` (system catalog) and `OrganizationPluginRepository` (org catalog). Plugin ZIP artifacts are stored in the `PluginStoreRepository` — a two-layer store that writes to local filesystem and optionally syncs to S3/MinIO. If S3 credentials are absent, the store falls back to local-only and logs a warning; the catalog continues to function.
 
 ## API
 
