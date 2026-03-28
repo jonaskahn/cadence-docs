@@ -1,6 +1,6 @@
 ---
 /**
- * Three observability layers described in docs; settings keys from cadence API telemetry metadata.
+ * Three observability layers: stdout logs, health/pool routes, optional OTel via global_settings.
  */
 ---
 
@@ -14,8 +14,7 @@
   >
     <title id="ob-title">Observability layers</title>
     <desc id="ob-desc">
-      Structured logs on stdout, health endpoints for probes, optional OpenTelemetry export via
-      OTLP.
+      Process logs on stdout, health endpoints for probes, optional OpenTelemetry export via OTLP.
     </desc>
     <rect
       x="12"
@@ -36,7 +35,7 @@
       font-family="var(--sl-font, system-ui)"
       fill="currentColor"
     >
-      Structured logs (stdout)
+      Process logs (stdout)
     </text>
     <text
       x="200"
@@ -47,7 +46,7 @@
       fill="currentColor"
       fill-opacity="0.82"
     >
-      CADENCE_LOG_FORMAT=json
+      cadence.main — logging.basicConfig
     </text>
     <rect
       x="12"
@@ -116,8 +115,8 @@
     </text>
   </svg>
   <p class="diagram-caption">
-    Implementation references: <code>cadence.api.telemetry</code> metadata keys,
-    <code>cadence.api.health.router</code>, logging setup in app entry.
+    Implementation references: <code>cadence.domain.telemetry</code> (<code>otel.*</code> keys),
+    <code>cadence.api.health</code>, <code>cadence.main</code> logging setup.
   </p>
 </div>
 

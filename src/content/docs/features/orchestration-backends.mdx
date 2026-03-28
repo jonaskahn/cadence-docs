@@ -25,7 +25,7 @@ audienceOutcomes:
 
 import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 
-Choosing a backend means choosing the engine that will execute your agent graph — how tool calls get routed, how agents hand off to each other, and which model providers the framework can talk to. Cadence currently runs two active backends: `langgraph` and `openai_agents`. A third framework type, `google_adk`, is defined in the platform's constants and provider registry but is not registered in the backend factory and cannot be used to create orchestrator instances.
+Choosing a backend means choosing the engine that will execute your agent graph — how tool calls get routed, how agents hand off to each other, and which model providers the framework can talk to. **Production orchestrators** use **`langgraph`** or **`openai_agents`**. The **`google_adk`** value appears in create-request validation patterns for forward compatibility, but **`OrchestratorFactory` does not register `google_adk` backends** — do not use it for new instances until support ships.
 
 The `framework_type` and `mode` fields are frozen at orchestrator creation. Once an instance exists, switching engines means creating a new orchestrator and redirecting any central points that reference the old one.
 
@@ -49,12 +49,12 @@ flowchart TD
 
 Two backends are active today. Each has its own mode support and provider compatibility:
 
-| Framework       | Supported modes                                    | Provider support               |
-| --------------- | -------------------------------------------------- | ------------------------------ |
-| `langgraph`     | `supervisor`, `coordinator`, `handoff`, `grounded` | All 10 providers               |
-| `openai_agents` | `supervisor`, `coordinator`, `handoff`             | `openai`, `litellm`, `bifrost` |
+| Framework       | Supported modes (factory + API validation)              | Provider support (`FRAMEWORK_SUPPORTED_PROVIDERS`)            |
+| --------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
+| `langgraph`     | `supervisor`, `coordinator`, `handoff`, `grounded`      | All providers listed in `cadence/core/constants/framework.py` |
+| `openai_agents` | `supervisor`, `coordinator`, `handoff` (not `grounded`) | `openai`, `litellm`, `bifrost`                                |
 
-`langgraph` uses the LangChain ecosystem and supports stateful graphs with all registered providers. `openai_agents` uses the OpenAI Agents SDK swarm model and is limited to providers that implement the OpenAI chat completions interface.
+`langgraph` uses the LangChain ecosystem and supports stateful graphs with all registered providers. `openai_agents` uses the OpenAI Agents SDK and is limited to providers that implement the OpenAI chat completions interface.
 
 <Aside type="note" title="grounded mode is LangGraph only">
   `grounded` mode enforces scope rules at the router level and is only implemented for `langgraph`.
@@ -91,7 +91,7 @@ Source: `FRAMEWORK_SUPPORTED_PROVIDERS` in `cadence/core/constants/framework.py`
 | `framework_type`  | string         | `langgraph` \| `openai_agents` — **immutable after creation**                           |
 | `mode`            | string         | `supervisor` \| `coordinator` \| `handoff` \| `grounded` — **immutable after creation** |
 | `status`          | string         | `active` \| `suspended` \| `inactive`                                                   |
-| `tier`            | string         | `hot` \| `warm` \| `cold` — target pool tier                                            |
+| `tier`            | string         | `hot` \| `demand` — target pool tier                                                    |
 | `whoami`          | string \| null | Identity context injected into answer nodes as a system prompt                          |
 | `config`          | JSON           | Mutable Tier 4 settings (see below)                                                     |
 | `plugin_settings` | JSON           | Active plugin settings map (`pid → {id, name, settings}`)                               |
@@ -166,7 +166,7 @@ class CreateOrchestratorRequest(BaseModel):
         ..., pattern="^(supervisor|coordinator|handoff|grounded)$"
     )
     active_plugin_ids: List[str] = Field(..., min_length=1)
-    tier: str = Field(default="cold", pattern="^(hot|warm|cold)$")
+    tier: str = Field(default="demand", pattern="^(hot|demand)$")
     whoami: Optional[str] = None
     config: Optional[Dict[str, Any]] = Field(default_factory=dict)
 ```
@@ -219,7 +219,7 @@ Every time the orchestrator config is updated, the platform recomputes a `config
 ```python title="cadence/api/orchestrator/schemas.py"
 class UpdateOrchestratorMetadataRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=10, max_length=200)
-    tier: Optional[str] = Field(None, pattern="^(hot|warm|cold)$")
+    tier: Optional[str] = Field(None, pattern="^(hot|demand)$")
     whoami: Optional[str] = None
     default_llm_config_id: Optional[str] = None
 ```

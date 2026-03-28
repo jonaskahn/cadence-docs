@@ -137,9 +137,13 @@ Each entry in `settings_schema` has this shape:
 
 </Steps>
 
-```python title="cadence/api/plugin.py"
+```python title="cadence/api/plugins/plugin.py"
 zip_bytes = await read_validated_plugin_file(file)
 plugin_service = request.app.state.plugin_service
+tenant_service = request.app.state.tenant_service
+
+org = await tenant_service.get_org(context.org_id)
+org_domain = org.get("domain") if org else None
 
 plugin = await plugin_service.upload_organization_plugin(
     org_id=context.org_id,
@@ -179,8 +183,11 @@ When an org admin configures a plugin, the UI calls
 Filled-in values are stored in the orchestrator's `plugin_settings` JSON field and passed
 as `config` to `agent.initialize(config)` when the orchestrator loads.
 
-```python title="cadence/api/plugin.py"
-schema = plugin_service.get_settings_schema(plugin_pid, context.org_id)
+```python title="cadence/api/plugins/plugin.py"
+schema = plugin_service.get_settings_schema(
+    plugin_pid,
+    context.org_id,
+)
 return [PluginSettingSchema(**setting) for setting in schema]
 ```
 

@@ -49,7 +49,8 @@ data: {"agent_hops": 2, "session_id": "..."}
 event: suggestion
 data: {"content": "Would you like to know more about..."}
 
-data: {"event":"error","data":{"error":"An internal error occurred"}}
+event: error
+data: {"code":"SY-9000","message":"An internal error occurred"}
 ```
 
 | Event type          | Meaning                                                                                        |
@@ -71,7 +72,7 @@ If `stream` is `false`, the API runs the graph to completion and returns one JSO
 The chat completion endpoint requires **`X-ORG-ID`** and **one of** `X-INSTANCE-ID` or
 `X-CENTRAL-ID`. Ambiguous or missing headers return `400` before any model tokens are consumed.
 
-```python title="cadence/api/chat.py"
+```python title="cadence/api/chat/router.py"
 @router.post("/completion")
 async def chat_completion(body: ChatCompletionRequest, request: Request):
     org_id = _require_header(request, "X-ORG-ID")
@@ -82,6 +83,9 @@ async def chat_completion(body: ChatCompletionRequest, request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="X-INSTANCE-ID or X-CENTRAL-ID header required",
         )
+    if instance_id:
+        return await _handle_instance_chat(request, body, org_id, instance_id.strip())
+    return await _handle_central_point_chat(request, body, org_id, central_id.strip())
 ```
 
 <Aside type="note" title="EventSource is GET-only">
@@ -96,7 +100,7 @@ async def chat_completion(body: ChatCompletionRequest, request: Request):
 
 When streaming is enabled, the handler returns a `StreamingResponse` whose async generator yields `to_sse()` chunks. Errors inside the generator emit a JSON error payload on the wire.
 
-```python title="cadence/api/chat.py"
+```python title="cadence/api/chat/router.py"
 async def event_generator():
     try:
         async for stream_event in orchestrator_service.process_chat_stream(
@@ -111,7 +115,8 @@ async def event_generator():
             yield "\n\n"
     except Exception as e:
         logger.error("Stream error: %s", e, exc_info=True)
-        yield 'data: {"event":"error","data":{"error":"An internal error occurred"}}\n\n'
+        err_data = {"code": "SY-9000", "message": "An internal error occurred"}
+        yield f"event: error\ndata: {json.dumps(err_data)}\n\n"
 
 return StreamingResponse(
     event_generator(),

@@ -88,11 +88,11 @@ flowchart TB
 **Cadence** delivers:
 
 - **Multi-tenant organizations** — Each org has isolated data, settings, LLM configs, and orchestrator instances. Scope is carried on requests (paths and headers) and enforced in middleware and domain services.
-- **Orchestrator instances** — Configurable agent runtimes (LangGraph, Google ADK, OpenAI Agents SDK) with a **pool** that loads **hot-tier** instances at startup and reacts to lifecycle events.
+- **Orchestrator instances** — Configurable agent runtimes (LangGraph, OpenAI Agents SDK, and other supported frameworks) with a **pool** that loads **hot-tier** instances at startup and reacts to lifecycle events.
 - **Plugins** — System and tenant plugin catalogs with storage on disk or S3/MinIO, validation, and dependency resolution before orchestrators run.
 - **Chat and completion** — HTTP APIs that route to the engine layer and respect org context, rate limits, and quotas.
 
-The service is a **FastAPI** application (version **2.0.3**). Persistent state lives primarily in **PostgreSQL**; **Redis** backs sessions, rate limiting, and stats; **RabbitMQ** drives orchestrator lifecycle events when available; **S3 or MinIO** stores plugin ZIPs when enabled (`CADENCE_PLUGIN_S3_ENABLED=true`).
+The service is a **FastAPI** application (API version **2.0.5** in `cadence.main`). Persistent state lives primarily in **PostgreSQL**; **Redis** backs sessions, rate limiting, and stats; **RabbitMQ** drives orchestrator lifecycle events when available; **S3 or MinIO** stores plugin ZIPs when enabled (`CADENCE_S3_ENABLED=true`).
 
 <SectionOutcomes
   outcomes={{

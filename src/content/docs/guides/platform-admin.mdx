@@ -75,7 +75,7 @@ These endpoints let platform admins inspect the current state of every running o
 | Method | Path                    | Permission                      | Action                                                                                                             |
 | ------ | ----------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `GET`  | `/api/admin/health`     | `cadence:system:health:read`    | Health check all loaded orchestrator instances — returns framework, mode, plugin count, and readiness per instance |
-| `GET`  | `/api/admin/pool/stats` | `cadence:system:telemetry:read` | Pool statistics: total instances, tier counts (hot/warm/cold), shared model and bundle counts, memory estimate     |
+| `GET`  | `/api/admin/pool/stats` | `cadence:system:telemetry:read` | Pool statistics: total instances, hot tier and demand pool counts, shared model and bundle counts, memory estimate |
 
 The unauthenticated `GET /health` endpoint remains the right choice for load balancer probes. Use `/api/admin/health` for diagnostics and incident investigation — it gives per-instance detail rather than a single boolean. See [Monitoring](/guides/monitoring/) for how to interpret pool stats during incidents.
 

@@ -74,6 +74,8 @@ flowchart TD
 
 `TenantContextMiddleware` runs **after** `AuthenticationMiddleware` on the inbound request (see [How the platform works](/concepts/how-it-works/)). It sets `request.state.session` to a **`BearerTokenSession`** (Redis) or **`ApiKeyTokenSession`** (synthetic). Route handlers use **`Depends(authenticated)`**, **`Depends(roles_allowed(PERM))`**, and **`org_context(security, org_id)`** from shared route helpers to enforce membership and build **`TenantContext`**.
 
+**Primary modules:** `cadence/api/tenant/organizations.py` — member org routes and `/api/admin/orgs*`; `cadence/api/tenant/membership.py` — `/api/orgs/{org_id}/members` and `/users` membership routes.
+
 ---
 
 ## Data model

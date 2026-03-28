@@ -87,11 +87,11 @@ Starlette runs middleware in reverse registration order: the **last** `add_middl
 
 ```python title="cadence/main.py — registration order (inner → outer)"
 configure_cors_middleware(app, cors_origins)           # innermost
-configure_security_headers_middleware(app, settings)
+configure_security_headers_middleware(app, app_settings)
 configure_rate_limiting_middleware(app)
-configure_tenant_context_middleware(app, settings)
-configure_authentication_middleware(app, settings)
-configure_error_handlers_middleware(app, settings)    # outermost
+configure_tenant_context_middleware(app, app_settings)
+configure_authentication_middleware(app, app_settings)
+configure_error_handlers_middleware(app, app_settings)    # outermost
 ```
 
 So the **inbound order** (first to see the request) is:

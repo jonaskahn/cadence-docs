@@ -88,18 +88,21 @@ All routes live under `POST /api/admin/users/api-keys`. They require both `sys_a
 
 When creating a key, each requested scope must satisfy two conditions. First, the scope must appear in the global `PERMISSIONS` set — requesting an unknown permission returns `422`. Second, unless the creating user is `sys_admin`, the user must already hold that permission either globally or in at least one org — you cannot grant a scope you do not yourself possess.
 
-```python title="cadence/api/api_key/router.py"
-def _validate_scopes(scopes: List[str], session) -> None:
+```python title="cadence/domain/api_key/service.py"
+def validate_scopes(self, scopes: List[str], session) -> None:
+    """Ensure each scope is known and the caller may grant it."""
     for s in scopes:
         if s not in PERMISSIONS:
-            raise HTTPException(422, detail=f"Unknown scope/permission: {s}")
+            raise ValidationError(f"Unknown scope/permission: {s}")
         if session.is_sys_admin:
             continue
         if session.has_permission(s, None):
             continue
-        org_ok = any(session.has_permission(s, oid) for oid in session.membership_org_ids)
+        org_ok = any(
+            session.has_permission(s, oid) for oid in session.membership_org_ids
+        )
         if not org_ok:
-            raise HTTPException(403, detail=f"Cannot grant scope you do not hold: {s}")
+            raise AuthorizationError(f"Cannot grant scope you do not hold: {s}")
 ```
 
 At runtime, `TenantContextMiddleware` further strips any dangerous permissions from the session via `sanitize_api_key_flat_scopes` — so even if a scope was granted at creation, certain elevated permissions are removed from the effective session.

@@ -25,7 +25,7 @@ audienceOutcomes:
 
 import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-**Chat** sends a user message to a chosen AI **orchestrator instance** or **central point** inside an organization-scoped request. Always send **which org** and **which instance** via headers; expect **400** if headers are incomplete. Follow the chat HTTP router for exact header and path rules.
+**Chat** sends a user message to a chosen AI **orchestrator instance** or **central point** inside an organization-scoped request. Always send **which org** and **which instance** via headers; expect **400** if headers are incomplete. Implementation: `cadence/api/chat/router.py` (`/api/chat/*`).
 
 ## Chat API
 

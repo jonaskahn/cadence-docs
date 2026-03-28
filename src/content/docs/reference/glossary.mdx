@@ -23,7 +23,7 @@ audienceOutcomes:
     - Build a shared lexicon for test case titles and defects.
 ---
 
-Alphabetical reference for jargon used in this documentation. For behavior detail, follow the links to [Concepts](/concepts/what-is-cadence/) and [Features](/features/).
+Alphabetical reference for jargon used in this documentation. For behavior detail, follow the links to [Concepts](/concepts/what-is-cadence/) and [Features](/features/). Code paths cited as `cadence/...` map to `src/cadence/...` in the repository.
 
 ## A
 
@@ -47,9 +47,9 @@ Platform abstraction for a stable routing entry (alias) to an AI App configurati
 
 ## H
 
-### Hot, warm, and cold (pool tier)
+### Hot and demand (pool tier)
 
-Controls how eagerly an [AI App](/features/ai-apps/) stays in the process pool—loaded at startup, on demand, or lazily. See [Hot-reload and AI App pool](/features/hot-reload-ai-app-pool/).
+Controls how eagerly an [AI App](/features/ai-apps/) stays in the process pool—**hot** instances load at startup; **demand** instances use the TTL-backed demand pool. See [Hot-reload and AI App pool](/features/hot-reload-ai-app-pool/).
 
 ## J
 

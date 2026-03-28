@@ -27,6 +27,13 @@ import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components'
 
 A JWT alone is not enough to access Cadence. After a successful login, the server issues a short-lived JWT but also writes the authoritative session — permissions, org memberships, metadata — to Redis, keyed by the JWT's `jti` claim. Every subsequent request looks up that Redis row. When it is gone, the request returns **401**, even if the JWT signature is still cryptographically valid. This is what makes logout instant.
 
+### Implementation map
+
+| Module                                | Role                                                                        |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `cadence.domain.auth.service`         | `AuthService` — login, JWT claims (`_build_jwt`), refresh, logout           |
+| `cadence.data.security.session_store` | `SessionStoreRepository` — Redis `session:{jti}`, refresh rows, OAuth codes |
+
 ## Summary for stakeholders
 
 - **Revocation is immediate.** Calling logout deletes the `session:{jti}` row. All subsequent requests using that JWT are rejected before the token itself expires.
@@ -40,16 +47,16 @@ Standard stateless JWTs cannot be revoked without waiting for them to expire. Ca
 
 `SessionStoreRepository` manages these keys:
 
-| Key pattern                       | Type          | Content                                          | TTL                                        |
-| --------------------------------- | ------------- | ------------------------------------------------ | ------------------------------------------ |
-| `session:{jti}`                   | String (JSON) | `BearerTokenSession` payload                     | Access token TTL (default 1800 s)          |
-| `user_sessions:{user_id}`         | Set           | Active access `jti` values for bulk-invalidation | No TTL — entries removed on session delete |
-| `refresh:{refresh_jti}`           | String (JSON) | `RefreshTokenData` payload                       | Refresh token TTL (default 604800 s)       |
-| `user_refresh_sessions:{user_id}` | Set           | Active refresh `jti` values                      | No TTL — entries removed on rotation       |
-| `oauth_state:{state}`             | String (JSON) | Provider + PKCE code verifier for social login   | Short-lived handoff TTL                    |
-| `oauth2_code:{code}`              | String (JSON) | One-time authorization code payload              | 300 s — consumed on exchange               |
+| Key pattern                       | Type          | Content                                          | TTL                                                                   |
+| --------------------------------- | ------------- | ------------------------------------------------ | --------------------------------------------------------------------- |
+| `session:{jti}`                   | String (JSON) | `BearerTokenSession` payload                     | Access token TTL (defaults via `global_settings`, seeded **10800** s) |
+| `user_sessions:{user_id}`         | Set           | Active access `jti` values for bulk-invalidation | No TTL — entries removed on session delete                            |
+| `refresh:{refresh_jti}`           | String (JSON) | `RefreshTokenData` payload                       | Refresh token TTL (default 604800 s)                                  |
+| `user_refresh_sessions:{user_id}` | Set           | Active refresh `jti` values                      | No TTL — entries removed on rotation                                  |
+| `oauth_state:{state}`             | String (JSON) | Provider + PKCE code verifier for social login   | Short-lived handoff TTL                                               |
+| `oauth2_code:{code}`              | String (JSON) | One-time authorization code payload              | 300 s — consumed on exchange                                          |
 
-Token TTLs are read from `global_settings` at runtime (`access_token_ttl_seconds`, `refresh_token_ttl_seconds`) and bootstrapped to 1800 s and 604800 s on first startup if missing.
+Token TTLs are read from `global_settings` at runtime (`access_token_ttl_seconds`, `refresh_token_ttl_seconds`) and bootstrapped from `AppSettings` (**10800** s / **604800** s) on first startup if missing.
 
 **`RefreshTokenData` fields** (stored in `refresh:{refresh_jti}`):
 

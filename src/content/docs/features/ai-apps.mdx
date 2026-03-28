@@ -29,7 +29,7 @@ audienceOutcomes:
 
 import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 
-An **AI App** (historically called an **orchestrator instance** in the API) is one configured AI runtime for an org. It declares the framework (`langgraph` or `openai_agents`), the mode (`supervisor` or `grounded`), which plugins are active, and how eagerly it should stay resident in memory (pool tier). The record lives in PostgreSQL; the running runtime lives in `OrchestratorPool`. HTTP routes are under `/api/orgs/{org_id}/orchestrators`.
+An **AI App** (historically called an **orchestrator instance** in the API) is one configured AI runtime for an org. It declares the framework (`langgraph` or `openai_agents`), the mode (for example `supervisor`, `coordinator`, `handoff`, or `grounded` — see [Orchestration backends](/features/orchestration-backends/)), which plugins are active, and how eagerly it should stay resident in memory (pool tier). The record lives in PostgreSQL; the running runtime lives in `OrchestratorPool`. HTTP routes are under `/api/orgs/{org_id}/orchestrators`.
 
 ## How instances are created and used
 
@@ -60,11 +60,11 @@ Routes use `roles_allowed` with these permission constants:
 
 ## Startup preloading
 
-During application startup, `load_hot_tier_instances` runs after plugin catalog sync. It loads all active AI Apps whose tier is `hot` so they are ready before the first chat request arrives. Instances on `warm` or `cold` tier are not preloaded — they require an explicit load call.
+During application startup, `load_hot_tier_instances` runs after plugin catalog sync. It loads all active AI Apps whose tier is `hot` so they are ready before the first chat request arrives. Instances on `demand` tier are not preloaded — they load into the demand pool on first use (or via an explicit load call).
 
 ## Limitations
 
-- **Pool capacity** — Large numbers of `hot` instances increase memory and startup time. Use `warm` or `cold` tier for low-traffic AI Apps and promote to `hot` before expected load spikes.
+- **Pool capacity** — Large numbers of `hot` instances increase memory and startup time. Use `demand` tier for low-traffic AI Apps and promote to `hot` before expected load spikes.
 - **Async load** — `202 Accepted` means the event was published, not that the instance is ready. Poll pool stats or wait before sending chat requests.
 - **RabbitMQ optional** — If the message bus is unavailable, `event_publisher` may be `None`. Load and unload handlers tolerate this and write the record without broadcasting.
 

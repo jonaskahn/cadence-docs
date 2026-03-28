@@ -16,7 +16,7 @@ audiences:
   - tester
 audienceOutcomes:
   stakeholder:
-    - Understand pool tiers (hot, warm, cold) as capacity and responsiveness trade-offs.
+    - Understand pool tiers (hot, demand) as capacity and responsiveness trade-offs.
   'business-analyst':
     - Describe when AI Apps load or evict for user-visible latency stories.
   'solution-architect':
@@ -29,21 +29,19 @@ audienceOutcomes:
 
 import { Aside, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
-The **AI App pool** (implemented as `OrchestratorPool`) manages running instances across three memory tiers. **Load** and
+The **AI App pool** (implemented as `OrchestratorPool`) manages running instances across **hot** (resident) and **demand** (TTL-backed on-demand) storage. **Load** and
 **unload** API calls are asynchronous — they publish events that a runtime worker consumes to
 bring instances up or tear them down. The HTTP call returns `202 Accepted` after publishing;
 the instance is not ready until the worker processes the event.
 
 ## How pool tiers work
 
-| Tier   | Behavior                           | When to use                                           |
-| ------ | ---------------------------------- | ----------------------------------------------------- |
-| `hot`  | Resident in memory, lowest latency | High-traffic or SLA-sensitive AI Apps                 |
-| `warm` | Can be promoted quickly            | Moderately active; balance between memory and latency |
-| `cold` | Configuration only, not resident   | Rarely used; lowest memory cost                       |
+| Tier     | Behavior                                      | When to use                                               |
+| -------- | --------------------------------------------- | --------------------------------------------------------- |
+| `hot`    | Resident in the hot pool, lowest latency      | High-traffic or SLA-sensitive AI Apps                     |
+| `demand` | Loaded into the demand pool on use; TTL evict | Lower baseline memory; first request may pay load latency |
 
-Tier is set as a default at AI App creation but overridden at load time with a `tier`
-hint in the load request.
+Tier is stored on the instance record and read when publishing the load event (see `cadence/api/orchestrator/lifecycle.py`).
 
 <Aside type="note" title="202 does not mean loaded">
   Load and unload return `202 Accepted` after publishing an event. The instance is not ready until
@@ -54,7 +52,7 @@ hint in the load request.
 
 <Steps>
 
-    1. Create the AI App with a `tier` default (often `cold` until traffic proves need).
+    1. Create the AI App with a `tier` default (often `demand` until traffic proves need).
     2. When you need predictable latency, trigger an explicit **load** to `hot` before a demo or
     traffic spike.
     3. After large config or plugin changes, unload then reload to ensure clean state.
@@ -72,16 +70,22 @@ Load validates org access before publishing the event. The HTTP response returns
 @audit_log("Publishing load event for instance {instance_id} (source=api_load)")
 @publish_after("load", _load_payload)
 async def load_orchestrator(
+    org_id: str,
     instance_id: str,
-    load_request: LoadOrchestratorRequest = None,
     request: Request = None,
     security: SecurityContext = Depends(roles_allowed(ORG_ORCHESTRATORS_LIFECYCLE)),
+    event_publisher=Depends(get_event_publisher),
 ):
+    context = org_context(security, org_id)
     settings_service: SettingsService = request.app.state.settings_service
     instance = await settings_service.get_instance_config(instance_id)
-    validate_orchestrator_access(instance, instance_id, security.org_id)
-    tier = (load_request.tier if load_request else None) or instance.get("tier", "hot")
-    return {"message": "Load event published", "instance_id": instance_id, "tier": tier}
+    validate_orchestrator_access(instance, instance_id, context.org_id)
+    tier = instance.get("tier", "hot")
+    return {
+        "message": "Load event published",
+        "instance_id": instance_id,
+        "tier": tier,
+    }
 ```
 
   </TabItem>

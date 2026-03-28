@@ -27,7 +27,7 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import MonitoringProbesDiagram from '@components/diagrams/MonitoringProbesDiagram.astro';
 import SectionOutcomes from '@components/SectionOutcomes.astro';
 
-**Monitor** Cadence using **liveness** and **admin health** routes, **pool statistics** for orchestrator tiers, and **structured JSON logs**. Admin probes require the right **`cadence:system:*`** permissions.
+**Monitor** Cadence using **liveness** and **admin health** routes, **pool statistics** for orchestrator tiers, and **stdout logs** from the API process. Admin probes require the right **`cadence:system:*`** permissions.
 
 ## Summary for stakeholders
 
@@ -59,11 +59,11 @@ import SectionOutcomes from '@components/SectionOutcomes.astro';
 
 ## Health endpoints
 
-| Endpoint                    | Auth required                                           | Purpose                                       |
-| --------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| `GET /health`               | None                                                    | Basic liveness — use for load balancer probes |
-| `GET /api/admin/health`     | `cadence:system:health:read`                            | Deeper orchestrator and dependency health     |
-| `GET /api/admin/pool/stats` | `cadence:system:admin` or appropriate system permission | Tier counts and shared artifact counts        |
+| Endpoint                    | Auth required                   | Purpose                                       |
+| --------------------------- | ------------------------------- | --------------------------------------------- |
+| `GET /health`               | None                            | Basic liveness — use for load balancer probes |
+| `GET /api/admin/health`     | `cadence:system:health:read`    | Deeper orchestrator and dependency health     |
+| `GET /api/admin/pool/stats` | `cadence:system:telemetry:read` | Tier counts and shared artifact counts        |
 
 <Aside type="note" title="Permission naming">
   Replace legacy "system admin" wording in runbooks with the concrete `cadence:system:*` permission
@@ -72,8 +72,8 @@ import SectionOutcomes from '@components/SectionOutcomes.astro';
 
 ## Pool statistics
 
-The Admin → Pool dashboard polls `GET /api/admin/pool/stats` and shows total instances, counts
-by tier (hot/warm/cold), and shared model/bundle counts.
+The Admin → Pool dashboard polls `GET /api/admin/pool/stats` and shows total instances, hot tier
+and demand pool counts, and shared model/bundle counts.
 
 **Reading pool stats during incidents:**
 
@@ -87,18 +87,16 @@ operations.
 
 ## Log shipping
 
-Set `CADENCE_LOG_FORMAT=json` to emit structured JSON lines on stdout. Ship stdout to your
-aggregation stack (ELK, Loki, CloudWatch, etc.) using your platform's log driver.
+The API uses standard Python logging from `cadence.main` (text lines by default). Ship **stdout** to your aggregation stack (ELK, Loki, CloudWatch, etc.) using your platform's log driver. For OpenTelemetry log export, configure `otel.logs_enabled` and related keys — see [Observability](/features/observability/).
 
-Key log fields to search during incidents: level, logger, message, and any request-specific
-context injected by middleware.
+Key log fields to search during incidents: level, logger, message, and any request-specific context injected by middleware.
 
 ## What to monitor
 
-- **Instance counts** by tier (hot/warm/cold) from pool stats.
+- **Instance counts** (hot tier vs demand pool) from pool stats.
 - **Error rates and latency** on chat and admin routes from your log aggregation.
 - **Message bus backlog** if load/unload events are stalling.
-- **503 chat errors** correlated with cold instance counts.
+- **503 chat errors** correlated with instances not loaded or evicted from the demand pool.
 
 ## Verification and quality
 

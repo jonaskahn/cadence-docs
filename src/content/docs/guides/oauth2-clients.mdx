@@ -40,7 +40,7 @@ import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components'
 ## Architecture and integration
 
 - Client rows live in PostgreSQL and are consumed by the OAuth2 token and authorization endpoints (`cadence.api.oauth2` and related modules).
-- Network access to `/oauth2/*` and `/api/oauth2/*` paths should follow the same TLS and WAF rules as the rest of the API.
+- Network access to `/oauth2/*` (and `/.well-known/openid-configuration`) should follow the same TLS and WAF rules as the rest of the API.
 
 ## Prerequisites
 
@@ -75,7 +75,7 @@ import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components'
 | `allowed_scopes`      | string[]                   | Optional filter; empty means "allow requested scope"           |
 | `is_active`           | boolean                    | Soft-disable the client                                        |
 
-```python title="cadence/api/admin_security.py"
+```python title="cadence/api/admin/schemas.py"
 class OAuth2ClientCreate(BaseModel):
     client_id: str = Field(..., min_length=2, max_length=255)
     name: str

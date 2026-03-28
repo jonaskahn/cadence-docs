@@ -42,7 +42,7 @@ flowchart LR
 
 **Tier 3 (Org LLM config)** — Each organization registers its own LLM configurations with its own API keys. When an orchestrator is assigned an `llm_config_id`, that config is the active provider and key for that instance.
 
-**Instance resolution** — At runtime, `LLMModelFactory.create_model_by_id` fetches the org's `OrganizationLLMConfig` by ID, decrypts the API key, validates the provider, and constructs the framework-appropriate model object.
+**Instance resolution** — At runtime, `LLMModelFactory.create_model_by_id` in `cadence/infra/llm/factory.py` fetches the org's `OrganizationLLMConfig` by ID, decrypts the API key, validates the provider, and constructs the framework-appropriate model object.
 
 ## OrganizationLLMConfig
 

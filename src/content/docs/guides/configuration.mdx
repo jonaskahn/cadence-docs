@@ -86,20 +86,25 @@ import SectionOutcomes from '@components/SectionOutcomes.astro';
 | `CADENCE_POSTGRES_URL`      | local default            | Primary PostgreSQL connection URL (write path)                                  |
 | `CADENCE_POSTGRES_READ_URL` | —                        | Optional read replica URL; omit to send all reads to primary                    |
 | `CADENCE_PGBOUNCER_ENABLED` | `false`                  | Use `NullPool` in SQLAlchemy when PgBouncer handles external connection pooling |
+| `CADENCE_DB_POOL_SIZE`      | `20`                     | SQLAlchemy pool size                                                            |
+| `CADENCE_DB_MAX_OVERFLOW`   | `10`                     | Extra connections allowed above pool size                                       |
+| `CADENCE_DB_POOL_RECYCLE`   | `3600`                   | Recycle connections after this many seconds                                     |
+| `CADENCE_DB_POOL_TIMEOUT`   | `30`                     | Seconds to wait for a connection from the pool                                  |
+| `CADENCE_DB_POOL_PRE_PING`  | `true`                   | Test connections before use                                                     |
 | `CADENCE_REDIS_URL`         | `redis://localhost:6379` | Session store, OAuth2 state, rate limits                                        |
 | `CADENCE_REDIS_DEFAULT_DB`  | `0`                      | Redis database index                                                            |
 | `CADENCE_RABBITMQ_URL`      | local default            | AMQP event bus for settings broadcast and pool lifecycle events                 |
 
 ### Plugin storage (S3 / MinIO)
 
-| Variable                       | Default           | Purpose                                                    |
-| ------------------------------ | ----------------- | ---------------------------------------------------------- |
-| `CADENCE_S3_ENABLED`           | `true`            | Enable S3/MinIO as the plugin binary store                 |
-| `CADENCE_S3_ENDPOINT_URL`      | —                 | S3-compatible endpoint URL; omit for AWS S3, set for MinIO |
-| `CADENCE_S3_ACCESS_KEY_ID`     | `""`              | S3 access key ID                                           |
-| `CADENCE_S3_SECRET_ACCESS_KEY` | `""`              | S3 secret access key                                       |
-| `CADENCE_S3_BUCKET_NAME`       | `cadence-plugins` | Bucket for plugin ZIP storage                              |
-| `CADENCE_S3_REGION`            | `us-east-1`       | S3 region                                                  |
+| Variable                       | Default           | Purpose                                                                        |
+| ------------------------------ | ----------------- | ------------------------------------------------------------------------------ |
+| `CADENCE_S3_ENABLED`           | `true`            | Enable S3/MinIO as the plugin artifact store (`false` = filesystem cache only) |
+| `CADENCE_S3_ENDPOINT_URL`      | —                 | S3-compatible endpoint URL; omit for AWS S3, set for MinIO                     |
+| `CADENCE_S3_ACCESS_KEY_ID`     | `""`              | S3 access key ID                                                               |
+| `CADENCE_S3_SECRET_ACCESS_KEY` | `""`              | S3 secret access key                                                           |
+| `CADENCE_S3_BUCKET_NAME`       | `cadence-plugins` | Bucket for plugin ZIP storage                                                  |
+| `CADENCE_S3_REGION`            | `us-east-1`       | S3 region                                                                      |
 
 ### Plugin directories
 
@@ -116,14 +121,14 @@ import SectionOutcomes from '@components/SectionOutcomes.astro';
 
 ### OAuth2 and social login
 
-| Variable                                                                                       | Default                                   | Purpose                                      |
-| ---------------------------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------- |
-| `CADENCE_OAUTH_REDIRECT_BASE_URL`                                                              | `http://localhost:3000`                   | Nuxt app base URL for OAuth callbacks        |
-| `CADENCE_CONSENT_UI_URL`                                                                       | `{oauth_redirect_base_url}/oauth/consent` | Full URL to the consent UI page              |
-| `CADENCE_GOOGLE_CLIENT_ID` / `_SECRET`                                                         | —                                         | Google social OAuth credentials              |
-| `CADENCE_GITHUB_CLIENT_ID` / `_SECRET`                                                         | —                                         | GitHub social OAuth credentials              |
-| `CADENCE_OAUTH2_CLIENT_ID` / `_SECRET` / `_AUTHORIZATION_URL` / `_TOKEN_URL` / `_USERINFO_URL` | —                                         | Generic OAuth2 provider for social login     |
-| `CADENCE_OAUTH2_SCOPES`                                                                        | `openid email profile`                    | Scopes requested during generic OAuth2 flows |
+| Variable                                                                                       | Default                                                   | Purpose                                      |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------- |
+| `CADENCE_OAUTH_REDIRECT_BASE_URL`                                                              | `http://localhost:3000`                                   | Nuxt app base URL for OAuth callbacks        |
+| `CADENCE_CONSENT_UI_URL`                                                                       | — (defaults to `{oauth_redirect_base_url}/oauth/consent`) | Full URL to the consent UI page              |
+| `CADENCE_GOOGLE_CLIENT_ID` / `_SECRET`                                                         | —                                                         | Google social OAuth credentials              |
+| `CADENCE_GITHUB_CLIENT_ID` / `_SECRET`                                                         | —                                                         | GitHub social OAuth credentials              |
+| `CADENCE_OAUTH2_CLIENT_ID` / `_SECRET` / `_AUTHORIZATION_URL` / `_TOKEN_URL` / `_USERINFO_URL` | —                                                         | Generic OAuth2 provider for social login     |
+| `CADENCE_OAUTH2_SCOPES`                                                                        | `openid email profile`                                    | Scopes requested during generic OAuth2 flows |
 
 ### Runtime behavior
 
@@ -131,9 +136,10 @@ import SectionOutcomes from '@components/SectionOutcomes.astro';
 | --------------------- | ------------ | --------------------------------------------------------------- |
 | `CADENCE_ENVIRONMENT` | `production` | Deployment environment name — controls production safety checks |
 | `CADENCE_DEBUG`       | `false`      | Enable debug mode — **must be `false` in production**           |
-| `CADENCE_LOG_FORMAT`  | `text`       | Set to `json` for structured log output                         |
 | `CADENCE_API_HOST`    | `0.0.0.0`    | API server bind address                                         |
 | `CADENCE_API_PORT`    | `8888`       | API server port                                                 |
+
+Structured logging format is not selected via `AppSettings`; default process logging is configured in `cadence.main`. Use [Observability](/features/observability/) for OpenTelemetry and log shipping patterns.
 
 ## Initial setup
 
@@ -151,12 +157,12 @@ import SectionOutcomes from '@components/SectionOutcomes.astro';
 
 ### Troubleshooting
 
-| Symptom                           | Cause                                 | Fix                                           |
-| --------------------------------- | ------------------------------------- | --------------------------------------------- |
-| `500` on startup                  | Database URL, credentials, or network | Check `CADENCE_POSTGRES_URL` and connectivity |
-| Sessions flaky or dropped         | Redis unavailable                     | Check `CADENCE_REDIS_URL` and Redis health    |
-| No JSON logs                      | `CADENCE_LOG_FORMAT` not set          | Set `CADENCE_LOG_FORMAT=json`                 |
-| `encryption_key` validation error | Not exactly 64 hex characters         | Regenerate with `openssl rand -hex 32`        |
+| Symptom                           | Cause                                      | Fix                                                                                 |
+| --------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `500` on startup                  | Database URL, credentials, or network      | Check `CADENCE_POSTGRES_URL` and connectivity                                       |
+| Sessions flaky or dropped         | Redis unavailable                          | Check `CADENCE_REDIS_URL` and Redis health                                          |
+| Plain text logs only              | Default `logging` config in `cadence.main` | Add a log pipeline or OTel log export per [Observability](/features/observability/) |
+| `encryption_key` validation error | Not exactly 64 hex characters              | Regenerate with `openssl rand -hex 32`                                              |
 
 ## Next steps
 
