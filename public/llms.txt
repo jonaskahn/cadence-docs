@@ -1,0 +1,56 @@
+# Cadence AI Orchestration Platform
+
+> Documentation for Cadence — multi-tenant AI Apps and agent platform: orchestration, plugins, security, and operations.
+
+## Introduction
+
+- [Welcome](https://cadence.ifelse.one/): Landing page and navigation into the docs
+
+## Concepts
+
+- [What is Cadence?](https://cadence.ifelse.one/concepts/what-is-cadence/): Product overview and positioning
+- [How the platform works](https://cadence.ifelse.one/concepts/how-it-works/): Architecture and request flow
+- [Security and access](https://cadence.ifelse.one/concepts/security-and-access/): AuthN, AuthZ, and tenancy boundaries
+
+## Features
+
+- [Feature guides](https://cadence.ifelse.one/features/): Index of feature documentation
+- [AI Apps](https://cadence.ifelse.one/features/ai-apps/): Orchestrator instances and lifecycle
+- [Central Points](https://cadence.ifelse.one/features/central-points/): Routing and central endpoints
+- [Chat and engine](https://cadence.ifelse.one/features/chat-and-engine/): Engine headers and routing behavior
+- [Hot-reload and AI App pool](https://cadence.ifelse.one/features/hot-reload-ai-app-pool/): Pool behavior and reload semantics
+- [JWT sessions and Redis](https://cadence.ifelse.one/features/jwt-sessions/): Session storage and JWT flow
+- [LLM configuration](https://cadence.ifelse.one/features/llm-configuration/): BYOK and provider configuration
+- [Multi-tenancy](https://cadence.ifelse.one/features/multi-tenancy/): Orgs, context, and quotas
+- [Observability](https://cadence.ifelse.one/features/observability/): Health, logs, and OpenTelemetry
+- [Orchestration backends](https://cadence.ifelse.one/features/orchestration-backends/): Backend options and wiring
+- [Orchestration modes](https://cadence.ifelse.one/features/orchestration-modes/): Modes of orchestration
+- [AI Agent SDK](https://cadence.ifelse.one/features/plugin-sdk/): Python SDK for agents and plugins
+- [AI Agent system](https://cadence.ifelse.one/features/plugin-system/): Plugin model and lifecycle
+- [AI Agents catalog](https://cadence.ifelse.one/features/plugins-catalog/): Discovering and managing agents
+- [Real-time streaming](https://cadence.ifelse.one/features/real-time-streaming/): Streaming APIs and usage
+- [Role-based access control](https://cadence.ifelse.one/features/role-based-access-control/): Permissions and roles
+
+## Guides
+
+- [API keys](https://cadence.ifelse.one/guides/api-keys/): Creating and using API keys
+- [Configuration](https://cadence.ifelse.one/guides/configuration/): Environment and service configuration
+- [Monitoring](https://cadence.ifelse.one/guides/monitoring/): Probes, metrics, and operations
+- [OAuth2 clients](https://cadence.ifelse.one/guides/oauth2-clients/): Client registration and usage
+- [Orchestrator load, plugins, and settings](https://cadence.ifelse.one/guides/orchestrator-load-and-plugin-settings/): Load behavior and settings
+- [Platform admin](https://cadence.ifelse.one/guides/platform-admin/): Administrative tasks and APIs
+
+## Integrations
+
+- [OAuth2 and BFF patterns](https://cadence.ifelse.one/integrations/oauth-bff/): OAuth2 flows and backend-for-frontend patterns
+
+## Reference
+
+- [Error codes](https://cadence.ifelse.one/reference/error-codes/): API and platform error reference
+- [Glossary](https://cadence.ifelse.one/reference/glossary/): Terms and definitions
+
+## Optional
+
+- [Developer onboarding](https://cadence.ifelse.one/guides/developer-onboarding/): Local setup and contribution workflow
+- [Plugin upload and verification](https://cadence.ifelse.one/guides/plugin-upload-pipeline/): Upload pipeline and validation
+- [Documentation audiences and outcomes](https://cadence.ifelse.one/reference/documentation-audiences/): Who each doc is for and expected outcomes

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const componentsDir = fileURLToPath(new URL('./src/components', import.meta.url));
 
 export default defineConfig({
-  site: 'https://cadence.example.invalid',
+  site: 'https://cadence.ifelse.one',
   vite: {
     resolve: {
       alias: {
@@ -33,6 +33,7 @@ export default defineConfig({
     '/contributing/regenerating-reference': '/',
     '/features/orchestrator-instances/': '/features/ai-apps/',
     '/features/hot-reload-orchestrator-pool/': '/features/hot-reload-ai-app-pool/',
+    '/llm.txt': '/llms.txt',
   },
   integrations: [
     tailwind({ applyBaseStyles: false }),
