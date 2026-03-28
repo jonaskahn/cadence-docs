@@ -1,0 +1,168 @@
+---
+title: Error codes
+description: Stable catalog codes (PREFIX-NNNN) for API and engine errors in Cadence.
+sidebar:
+  order: 3
+tableOfContents: true
+audiences:
+  - stakeholder
+  - business-analyst
+  - solution-architect
+  - developer
+  - tester
+audienceOutcomes:
+  stakeholder:
+    - Recognize error categories when reviewing incident or integration summaries.
+  'business-analyst':
+    - Map API or log codes to failure classes for requirements and acceptance language.
+  'solution-architect':
+    - Align client handling and observability with the platform error catalog.
+  developer:
+    - Interpret `code` fields in JSON error bodies and match them to Python constants.
+  tester:
+    - Assert on stable codes in API and engine tests and file defects with precise IDs.
+---
+
+Cadence uses **stable catalog codes** for errors returned by the API and raised inside the engine. The canonical list lives in `src/cadence/core/exceptions/error_codes.py`. API error responses include the catalog value in the JSON **`code`** field (flat body; see `FlatApiError` in `src/cadence/schemas/responses.py`). The `CATALOG_CODES` tuple in that module is covered by unit tests so each listed code appears exactly once.
+
+## Format and prefixes
+
+Codes use **`{PREFIX}-{NNNN}`**: a two-letter category prefix and a zero-padded numeric id. Reserved numeric ranges are noted per category below.
+
+| Prefix | Category                 | Typical numeric range                      |
+| ------ | ------------------------ | ------------------------------------------ |
+| **SY** | System / framework       | 9000–9999 (plus dynamic HTTP-mapped codes) |
+| **VA** | Validation               | 0001–0999; misc domain uses 01xx           |
+| **AU** | Authentication           | 0001–0999                                  |
+| **AZ** | Authorization            | 0001–0999                                  |
+| **RE** | Resource / lifecycle     | 0001–0999                                  |
+| **RL** | Rate limit               | 0001–0999                                  |
+| **OR** | Orchestrator / engine    | 0001–0999                                  |
+| **PL** | Plugins                  | 0001–0999                                  |
+| **LL** | LLM                      | 0001–0999                                  |
+| **DB** | Database                 | 0001–0999                                  |
+| **CF** | Configuration / settings | 0001–0999                                  |
+| **OA** | OAuth2                   | 0001–0999                                  |
+
+## Dynamic system codes (`SY-{HTTP status}`)
+
+When the middleware maps a Starlette `HTTPException` to the catalog, it uses `sy_http_status(status_code)`, producing **`SY-{NNNN}`** where `NNNN` is the four-digit HTTP status (for example `SY-0404` for 404). These values are **not** part of `CATALOG_CODES` but are valid `code` values in API responses.
+
+## SY — System / framework
+
+| Code    | Constant      | Meaning                                            |
+| ------- | ------------- | -------------------------------------------------- |
+| SY-9000 | `SY_INTERNAL` | Unhandled internal; default for `CadenceException` |
+
+## VA — Validation
+
+| Code    | Constant                    | Meaning                                            |
+| ------- | --------------------------- | -------------------------------------------------- |
+| VA-0001 | `VA_VALIDATION_ERROR`       | Validation error                                   |
+| VA-0002 | `VA_INVALID_INPUT`          | Invalid input                                      |
+| VA-0003 | `VA_MISSING_REQUIRED_FIELD` | Missing required field                             |
+| VA-9001 | `VA_REQUEST_VALIDATION`     | FastAPI `RequestValidationError` (query/path/body) |
+| VA-9002 | `VA_PYDANTIC_BODY`          | Pydantic validation on response models / body      |
+| VA-9003 | `VA_FIELD_VALIDATION`       | Per-field row in validation error list             |
+
+## AU — Authentication
+
+| Code    | Constant                   | Meaning               |
+| ------- | -------------------------- | --------------------- |
+| AU-0001 | `AU_AUTHENTICATION_FAILED` | Authentication failed |
+| AU-0002 | `AU_INVALID_TOKEN`         | Invalid token         |
+| AU-0003 | `AU_INVALID_GRANT`         | Invalid grant         |
+
+## AZ — Authorization
+
+| Code    | Constant                          | Meaning                               |
+| ------- | --------------------------------- | ------------------------------------- |
+| AZ-0001 | `AZ_AUTHORIZATION_FAILED`         | Authorization failed                  |
+| AZ-0002 | `AZ_TENANT_ISOLATION`             | Tenant isolation violation            |
+| AZ-0003 | `AZ_ORG_MEMBERSHIP_REQUIRED`      | Org membership required               |
+| AZ-0004 | `AZ_SYS_ADMIN_SELF_MODIFY_DENIED` | System admin self-modification denied |
+
+## RE — Resource / lifecycle
+
+| Code    | Constant               | Meaning                 |
+| ------- | ---------------------- | ----------------------- |
+| RE-0001 | `RE_NOT_FOUND`         | Resource not found      |
+| RE-0002 | `RE_ALREADY_EXISTS`    | Resource already exists |
+| RE-0003 | `RE_CONFLICT`          | Resource conflict       |
+| RE-0004 | `RE_QUOTA_EXCEEDED`    | Quota exceeded          |
+| RE-0010 | `RE_API_KEY_NOT_FOUND` | API key not found       |
+
+## RL — Rate limit
+
+| Code    | Constant      | Meaning             |
+| ------- | ------------- | ------------------- |
+| RL-0001 | `RL_EXCEEDED` | Rate limit exceeded |
+
+## OR — Orchestrator / engine
+
+| Code    | Constant                      | Meaning                          |
+| ------- | ----------------------------- | -------------------------------- |
+| OR-0001 | `OR_ERROR`                    | Orchestrator / engine error      |
+| OR-0002 | `OR_NOT_READY`                | Not ready                        |
+| OR-0003 | `OR_TIMEOUT`                  | Timeout                          |
+| OR-0004 | `OR_UNSUPPORTED_OPERATION`    | Unsupported operation            |
+| OR-0005 | `OR_PLANNER_TOOL_ROUND_LIMIT` | Planner tool round limit reached |
+| OR-0006 | `OR_GRAPH_DEFINITION_INVALID` | Graph definition invalid         |
+
+## PL — Plugins
+
+| Code    | Constant               | Meaning                  |
+| ------- | ---------------------- | ------------------------ |
+| PL-0001 | `PL_ERROR`             | Plugin error             |
+| PL-0002 | `PL_NOT_FOUND`         | Plugin not found         |
+| PL-0003 | `PL_VALIDATION_FAILED` | Plugin validation failed |
+
+## LL — LLM
+
+| Code    | Constant               | Meaning                 |
+| ------- | ---------------------- | ----------------------- |
+| LL-0001 | `LL_ERROR`             | LLM error               |
+| LL-0002 | `LL_API_KEY`           | LLM API key issue       |
+| LL-0003 | `LL_RATE_LIMIT`        | LLM rate limit          |
+| LL-0004 | `LL_STRUCTURED_OUTPUT` | Structured output error |
+
+## DB — Database
+
+| Code    | Constant        | Meaning                   |
+| ------- | --------------- | ------------------------- |
+| DB-0001 | `DB_ERROR`      | Database error            |
+| DB-0002 | `DB_CONNECTION` | Database connection error |
+
+## CF — Configuration / settings
+
+| Code    | Constant                | Meaning             |
+| ------- | ----------------------- | ------------------- |
+| CF-0001 | `CF_CONFIGURATION`      | Configuration error |
+| CF-0002 | `CF_SETTINGS_NOT_FOUND` | Settings not found  |
+| CF-0003 | `CF_ENCRYPTION_INVALID` | Encryption invalid  |
+| CF-0004 | `CF_APP_CONFIG_INVALID` | App config invalid  |
+
+## OA — OAuth2
+
+| Code    | Constant                       | Meaning                   |
+| ------- | ------------------------------ | ------------------------- |
+| OA-0001 | `OA_INVALID_REQUEST`           | Invalid OAuth2 request    |
+| OA-0002 | `OA_INVALID_CLIENT`            | Invalid client            |
+| OA-0003 | `OA_UNSUPPORTED_RESPONSE_TYPE` | Unsupported response type |
+| OA-0004 | `OA_INVALID_REDIRECT_URI`      | Invalid redirect URI      |
+| OA-0005 | `OA_INVALID_HANDOFF`           | Invalid handoff           |
+| OA-0006 | `OA_INVALID_REQUEST_GENERIC`   | Invalid request (generic) |
+| OA-0007 | `OA_UNAUTHORIZED_GRANT_TYPE`   | Unauthorized grant type   |
+| OA-0008 | `OA_INVALID_GRANT`             | Invalid grant             |
+
+## Misc domain
+
+| Code    | Constant                        | Meaning                    |
+| ------- | ------------------------------- | -------------------------- |
+| VA-0101 | `VA_UNKNOWN_ROLE`               | Unknown role               |
+| VA-0102 | `VA_OAUTH_UNKNOWN_PROVIDER`     | Unknown OAuth provider     |
+| AU-0010 | `AU_OAUTH_PROVIDER_NOT_ENABLED` | OAuth provider not enabled |
+
+## Keeping this page in sync
+
+When you add, remove, or rename codes in `error_codes.py`, update this reference in the **same change** so clients, operators, and tests stay aligned with the catalog.
